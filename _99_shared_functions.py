@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 import copy
+import scipy.stats as sps
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
@@ -24,18 +25,24 @@ def write_txt(str, path):
     text_file.write(str)
     text_file.close()
 
-# pull parameters, potentially as a draw
-def getparm(x, p_df, random_draw=False):
-    if random_draw is False:
-        return float(p_df.base.loc[p_df.param == x])
-    else:
-        distro = p_df.distribution.loc[p_df.param == x].iloc[0]
-        if distro != "constant":
-            p = tuple(p_df[['p1', 'p2']].loc[p_df.param == x].iloc[0])
-            draw = getattr(np.random, distro)(*p)
-            return draw
-        else:
-            return float(p_df.base.loc[p_df.param == x])
+# # pull parameters, potentially as a draw
+# def getparm(x, p_df, random_draw=False, get_prob = False):
+#     if random_draw is False:
+#         return float(p_df.base.loc[p_df.param == x])
+#     else:
+#         distro = p_df.distribution.loc[p_df.param == x].iloc[0]
+#         if distro != "constant":
+#             p = tuple(p_df[['p1', 'p2']].loc[p_df.param == x].iloc[0])
+#             draw = getattr(np.random, distro)(*p)
+#             if get_prob is True:
+#                 p = (draw,)+p
+#                 prob = getattr(sps, distro).pdf(*p)
+#                 return draw, prob
+#             else:
+#                 return draw
+#         else:
+#             return float(p_df.base.loc[p_df.param == x])
+
 
 
 # SIR simulation
@@ -69,52 +76,77 @@ def sim_sir(S, I, R, beta, gamma, n_days):
     return s, i, r
 
 
-def sensitivity_wrapper(seed=8675309, random_draw=True, modparm=None, 
-                        modval=None, output_SIR = False):
-    np.random.seed(seed)
-    # define a temporary parameter matrix in which the twiddled parameter is set as a constant
-    p_df = copy.deepcopy(params)
-    if modparm is not None:
-        if type(modparm).__name__ == "str":
-            assert modparm in p_df.param.tolist()
-            p_df.loc[p_df['param'] == modparm, 'base'] = float(modval)
-            p_df.loc[p_df['param'] == modparm, 'distribution'] = 'constant'
-        elif type(modparm).__name__ == "list":
-            assert(all([i in p_df.param.tolist() for i in modparm]))
-            for i in range(len(modparm)):
-                p_df.loc[p_df['param'] == modparm[i], 'base'] = float(modval[i])
-                p_df.loc[p_df['param'] == modparm[i], 'distribution'] = 'constant'
-    # define all of the parameters via calls to getparm
-    recovery_days = getparm("recovery_days", p_df=p_df, random_draw = random_draw)
-    doubling_time = getparm("doubling_time", random_draw=random_draw, p_df=p_df)
-    soc_dist = getparm('soc_dist', random_draw=random_draw, p_df=p_df)
-    hosp_prop = getparm('hosp_prop', random_draw=random_draw, p_df=p_df)
-    ICU_prop = getparm('ICU_prop', random_draw=random_draw, p_df=p_df)
-    vent_prop = getparm('vent_prop', random_draw=random_draw, p_df=p_df)
-    hosp_LOS = getparm('hosp_LOS', random_draw=random_draw, p_df=p_df)
-    ICU_LOS = getparm('ICU_LOS', random_draw=random_draw, p_df=p_df)
-    vent_LOS = getparm('vent_LOS', random_draw=random_draw, p_df=p_df)
+def qdraw(qvec, p_df = params):
+    '''
+    Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
+    It returns a bunch of parameters for inputting into SIR
+    It'll also return their probability under the prior
+    '''
+    assert len(qvec) == params.shape[0]
+    outdicts = []
+    for i in range(len(qvec)):
+        if p_df.distribution.iloc[i] == 'constant':
+            out = dict(param = p_df.param.iloc[i],
+                       val = p_df.base.iloc[i],
+                       prob = 1)
+        else:
+            # need to construct this differently for different distributoons because fuck scipy
+            if p_df.distribution.iloc[i] == 'gamma':
+                p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
+            elif p_df.distribution.iloc[i] == 'beta':
+                p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
+            elif p_df.distribution.iloc[i] == 'uniform':
+                p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
+            out = dict(param = p_df.param.iloc[i],
+                       val = getattr(sps, p_df.distribution.iloc[i]).ppf(*p))
+            # does scipy not have a function to get the density from the quantile?
+            p_pdf = (out['val'],) + p[1:]
+            out.update({"prob": getattr(sps, p_df.distribution.iloc[i]).pdf(*p_pdf)})        
+        outdicts.append(out)
+    return pd.DataFrame(outdicts)
+
+def jumper(start, jump_sd):
+    probit = sps.norm.ppf(start)
+    probit += np.random.normal(size = len(probit), scale = jump_sd)
+    newq = sps.norm.cdf(probit)
+    return newq
+
+def SIR_from_params(p_df):
+    '''
+    This function takes the output from the qdraw function
+    '''
+    #
+    n_hosp = int(p_df.val.loc[p_df.param == 'n_hosp'])
+    n_infec = int(p_df.val.loc[p_df.param == 'n_infec'])
+    doubling_time = float(p_df.val.loc[p_df.param == 'doubling_time'])
+    soc_dist = float(p_df.val.loc[p_df.param == 'soc_dist'])
+    hosp_prop = float(p_df.val.loc[p_df.param == 'hosp_prop'])
+    ICU_prop = float(p_df.val.loc[p_df.param == 'ICU_prop'])
+    vent_prop = float(p_df.val.loc[p_df.param == 'vent_prop'])
+    hosp_LOS = float(p_df.val.loc[p_df.param == 'hosp_LOS'])
+    ICU_LOS = float(p_df.val.loc[p_df.param == 'ICU_LOS'])
+    vent_LOS = float(p_df.val.loc[p_df.param == 'vent_LOS'])
+    recovery_days = float(p_df.val.loc[p_df.param == 'recovery_days'])
+    mkt_share = float(p_df.val.loc[p_df.param == 'mkt_share'])
+    region_pop = float(p_df.val.loc[p_df.param == 'region_pop'])
     #
     gamma = 1 / recovery_days  # , random_draw=random_draw)
     doubling_time = doubling_time
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
-    total_infections = getparm('n_hosp', p_df=p_df) / \
-                       getparm('mkt_share', p_df=p_df) / \
-                       hosp_prop
-    detection_prob = getparm('n_infec', p_df=p_df) / total_infections
+    total_infections = n_hosp / mkt_share / hosp_prop
+    detection_prob = n_infec / total_infections
     beta = (
                    intrinsic_growth_rate + gamma
-           ) / getparm('region_pop', p_df=p_df) * (1 - soc_dist)
+           ) / region_pop * (1 - soc_dist)
     n_days = 200
-
-    s, i, r = sim_sir(S=getparm('region_pop', p_df=p_df),
-                      I=getparm('n_infec', p_df=p_df) / detection_prob,
+    #
+    s, i, r = sim_sir(S=region_pop,
+                      I=n_infec / detection_prob,
                       R=0,
                       beta=beta,
                       gamma=gamma,
                       n_days=n_days)
-    if output_SIR == True:
-        return np.vstack([s,i,r]).T
+
     hosp_raw = hosp_prop
     ICU_raw = hosp_raw * ICU_prop  # coef param
     vent_raw = ICU_raw * vent_prop  # coef param
@@ -122,9 +154,9 @@ def sensitivity_wrapper(seed=8675309, random_draw=True, modparm=None,
     ds = np.diff(s*-1)
     ds = np.array([0]+list(ds))
 
-    hosp = ds * hosp_raw * getparm('mkt_share', p_df=p_df)
-    icu = ds * ICU_raw * getparm('mkt_share', p_df=p_df)
-    vent = ds * vent_raw * getparm('mkt_share', p_df=p_df)
+    hosp = ds * hosp_raw * mkt_share
+    icu = ds * ICU_raw * mkt_share
+    vent = ds * vent_raw * mkt_share
 
     # make a data frame with all the stats for plotting
     days = np.array(range(0, n_days + 1))
@@ -152,23 +184,131 @@ def sensitivity_wrapper(seed=8675309, random_draw=True, modparm=None,
         census_dict[k] = census[re.sub("_census", "_adm", k)]
     proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
     proj = proj.fillna(0)
+    #
+    output = dict(days=np.asarray(proj.day),
+                  arr=np.asarray(proj)[:, 1:],
+                  names=proj.columns.tolist()[1:],
+                  parms = p_df)
+    return output
     
-    if random_draw is True:
-        output = dict(days=np.asarray(proj.day),
-                      arr=np.asarray(proj)[:, 1:],
-                      names=proj.columns.tolist()[1:],
-                      parms = dict(doubling_time = doubling_time,
-                                   soc_dist = soc_dist,
-                                   hosp_prop = hosp_prop,
-                                   ICU_prop = ICU_prop,
-                                   vent_prop = vent_prop,
-                                   hosp_LOS = hosp_LOS,
-                                   ICU_LOS = ICU_LOS,
-                                   vent_LOS = vent_LOS,
-                                   recovery_days = recovery_days))
-        return output
-    else:
-        return proj
+    
+#     output.update({'prior_prob':np.sum(np.log(np.array([output['probs'][i] for i in output['probs'].keys()])))})          
+
+
+
+# def sensitivity_wrapper(seed=8675309, random_draw=True, modparm=None, 
+#                         modval=None, output_SIR = False):
+#     np.random.seed(seed)
+#     # define a temporary parameter matrix in which the twiddled parameter is set as a constant
+#     p_df = copy.deepcopy(params)
+#     if modparm is not None:
+#         if type(modparm).__name__ == "str":
+#             assert modparm in p_df.param.tolist()
+#             p_df.loc[p_df['param'] == modparm, 'base'] = float(modval)
+#             p_df.loc[p_df['param'] == modparm, 'distribution'] = 'constant'
+#         elif type(modparm).__name__ == "list":
+#             assert(all([i in p_df.param.tolist() for i in modparm]))
+#             for i in range(len(modparm)):
+#                 p_df.loc[p_df['param'] == modparm[i], 'base'] = float(modval[i])
+#                 p_df.loc[p_df['param'] == modparm[i], 'distribution'] = 'constant'
+#     # define all of the parameters via calls to getparm
+#     recovery_days, rd_prob = getparm("recovery_days", p_df=p_df, random_draw = random_draw, get_prob = True)
+#     doubling_time, dt_prob = getparm("doubling_time", random_draw=random_draw, p_df=p_df, get_prob = True)
+#     soc_dist, sd_prob = getparm('soc_dist', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     hosp_prop, hp_prob = getparm('hosp_prop', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     ICU_prop, ip_prob = getparm('ICU_prop', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     vent_prop, vp_prob = getparm('vent_prop', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     hosp_LOS, hl_prob = getparm('hosp_LOS', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     ICU_LOS, il_prob = getparm('ICU_LOS', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     vent_LOS, vl_prob = getparm('vent_LOS', random_draw=random_draw, p_df=p_df, get_prob = True)
+#     #
+#     gamma = 1 / recovery_days  # , random_draw=random_draw)
+#     doubling_time = doubling_time
+#     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
+#     total_infections = getparm('n_hosp', p_df=p_df) / \
+#                        getparm('mkt_share', p_df=p_df) / \
+#                        hosp_prop
+#     detection_prob = getparm('n_infec', p_df=p_df) / total_infections
+#     beta = (
+#                    intrinsic_growth_rate + gamma
+#            ) / getparm('region_pop', p_df=p_df) * (1 - soc_dist)
+#     n_days = 200
+
+#     s, i, r = sim_sir(S=getparm('region_pop', p_df=p_df),
+#                       I=getparm('n_infec', p_df=p_df) / detection_prob,
+#                       R=0,
+#                       beta=beta,
+#                       gamma=gamma,
+#                       n_days=n_days)
+#     if output_SIR == True:
+#         return np.vstack([s,i,r]).T
+#     hosp_raw = hosp_prop
+#     ICU_raw = hosp_raw * ICU_prop  # coef param
+#     vent_raw = ICU_raw * vent_prop  # coef param
+    
+#     ds = np.diff(s*-1)
+#     ds = np.array([0]+list(ds))
+
+#     hosp = ds * hosp_raw * getparm('mkt_share', p_df=p_df)
+#     icu = ds * ICU_raw * getparm('mkt_share', p_df=p_df)
+#     vent = ds * vent_raw * getparm('mkt_share', p_df=p_df)
+
+#     # make a data frame with all the stats for plotting
+#     days = np.array(range(0, n_days + 1))
+#     data_list = [days, hosp, icu, vent]
+#     data_dict = dict(zip(["day", "hosp_adm", "icu_adm", "vent_adm"], data_list))
+#     projection = pd.DataFrame.from_dict(data_dict)
+#     projection_admits = projection
+#     projection_admits["day"] = range(projection_admits.shape[0])
+#     # census df
+#     hosp_LOS_raw = hosp_LOS
+#     ICU_LOS_raw = ICU_LOS
+#     vent_LOS_raw = ICU_LOS_raw * vent_LOS  # this is a coef
+
+#     los_dict = {
+#         "hosp_census": hosp_LOS_raw,
+#         "icu_census": ICU_LOS_raw,
+#         "vent_census": vent_LOS_raw,
+#     }
+#     census_dict = {}
+#     for k, los in los_dict.items():
+#         census = (
+#                 projection_admits.cumsum().iloc[:-int(los), :]
+#                 - projection_admits.cumsum().shift(int(los)).fillna(0)
+#         ).apply(np.ceil)
+#         census_dict[k] = census[re.sub("_census", "_adm", k)]
+#     proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
+#     proj = proj.fillna(0)
+    
+#     if random_draw is True:
+#         output = dict(days=np.asarray(proj.day),
+#                       arr=np.asarray(proj)[:, 1:],
+#                       names=proj.columns.tolist()[1:],
+#                       parms = dict(doubling_time = doubling_time,
+#                                    soc_dist = soc_dist,
+#                                    hosp_prop = hosp_prop,
+#                                    ICU_prop = ICU_prop,
+#                                    vent_prop = vent_prop,
+#                                    hosp_LOS = hosp_LOS,
+#                                    ICU_LOS = ICU_LOS,
+#                                    vent_LOS = vent_LOS,
+#                                    recovery_days = recovery_days),
+#                       probs = dict(recovery_days = rd_prob,
+#                                    doubling_time = dt_prob,
+#                                    soc_dist = sd_prob ,
+#                                    hosp_prop = hp_prob ,
+#                                    ICU_prop = ip_prob, 
+#                                    vent_prop = vp_prob,
+#                                    hosp_LOS = hl_prob,
+#                                    ICU_LOS = il_prob,
+#                                    vent_LOS = vl_prob))
+#         output.update({'prior_prob':np.sum(np.log(np.array([output['probs'][i] for i in output['probs'].keys()])))})          
+#         return output
+#     else:
+#         return proj
+
+
+
 
 
 

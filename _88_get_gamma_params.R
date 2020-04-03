@@ -537,7 +537,7 @@ df[df$param == "soc_dist", c("base", 'distribution', 'p1', 'p2')] <- c(.3, 'unif
 x = gamma.parms.from.quantiles(q = c(.01, .025), p = c(.025, .5), plot = T)
 df[df$param == "hosp_prop", c("base", 'distribution', 'p1', 'p2')] <- c(.025, 'gamma', x$shape, x$scale)
 # ICU prop --
-x = gamma.parms.from.quantiles(q = c(.2,.7), p = c(.025, .975), plot = T)
+x = beta.parms.from.quantiles(q = c(.2,.7), p = c(.025, .975), plot = T)
 df[df$param == "ICU_prop", c("base", 'distribution', 'p1', 'p2')] <- c(.45, 'beta', x$a, x$a)
 # vent prop -- 
 x = beta.parms.from.quantiles(q = c(.3,.9), p = c(.025, .975), plot = T)
@@ -552,7 +552,7 @@ df[df$param == "ICU_LOS", c("base", 'distribution', 'p1', 'p2')] <- c(9, 'gamma'
 x = gamma.parms.from.quantiles(q = c(.75,1.5), p = c(.025, .975), plot = T)
 df[df$param == "vent_LOS", c('base', 'distribution', 'p1', 'p2', 'description')] <- c(10/9, 'gamma', x$shape, x$scale, "coef on ICU LOS")
 # Recovery time
-x <- gamma.parms.from.quantiles(q = c(14, 23), p = c(.5, .9), plot = T)
+x <- gamma.parms.from.quantiles(q = c(10, 23), p = c(.1, .9), plot = T)
 df[df$param == "recovery_days", c("base", 'distribution', 'p1', 'p2')] <- c(14, 'gamma', x$shape, x$scale)
 
 write.csv(df, "~/projects/chime_sims/data/parameters.csv")
