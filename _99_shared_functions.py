@@ -135,9 +135,7 @@ def SIR_from_params(p_df):
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
     detection_prob = n_infec / total_infections
-    beta = (
-                   intrinsic_growth_rate + gamma
-           ) / region_pop * (1 - soc_dist)
+    beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
     n_days = 200
     #
     s, i, r = sim_sir(S=region_pop,

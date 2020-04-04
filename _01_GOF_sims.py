@@ -69,6 +69,8 @@ plt.plot(b)
 df = pd.DataFrame(outdicts)
 df.head()
 
-plt.plot(df.vent_LOS)
+i=0
+i+=1
+plt.plot(df.iloc[:,i])
 
 current_pos['draw']['parms']
