@@ -28,8 +28,8 @@ def eval_pos(pos):
     draw = SIR_from_params(qdraw(pos))
     residuals = draw['arr'][:nobs,5][-7:] - census_ts.census[-7:] # 5 corresponds with vent census
     sigma2 = np.var(residuals)
-    LL = -np.sum((residuals**2)/(2*sigma2))
-    Lprior = -np.log(draw['parms'].prob).sum()
+    LL = np.sum(np.log((residuals**2)/(2*sigma2)))
+    Lprior = np.log(draw['parms'].prob).sum()
     posterior = LL + Lprior
     out = dict(pos = pos,
                draw = draw,
