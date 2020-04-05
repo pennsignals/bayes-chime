@@ -531,8 +531,8 @@ df
 # doubling time before social distancing
 x = gamma.parms.from.quantiles(q = c(1.5, 5), p = c(.025, .975), plot = T)
 df[df$param == "doubling_time", c("base", 'distribution', 'p1', 'p2')] <- c(2.75, 'gamma', x$shape, x$scale)
-# social distancing
-df[df$param == "soc_dist", c("base", 'distribution', 'p1', 'p2')] <- c(.3, 'uniform', 0, .7)
+# # social distancing
+# df[df$param == "soc_dist", c("base", 'distribution', 'p1', 'p2')] <- c(.3, 'uniform', 0, .7)
 # hosp prop
 x = gamma.parms.from.quantiles(q = c(.01, .025), p = c(.025, .5), plot = T)
 df[df$param == "hosp_prop", c("base", 'distribution', 'p1', 'p2')] <- c(.025, 'gamma', x$shape, x$scale)
@@ -554,6 +554,18 @@ df[df$param == "vent_LOS", c('base', 'distribution', 'p1', 'p2', 'description')]
 # Recovery time
 x <- gamma.parms.from.quantiles(q = c(10, 23), p = c(.1, .9), plot = T)
 df[df$param == "recovery_days", c("base", 'distribution', 'p1', 'p2')] <- c(14, 'gamma', x$shape, x$scale)
+
+# depth of social distancing
+x = beta.parms.from.quantiles(q = c(.2,.9), p = c(.025, .975), plot = T)
+df[df$param == "logistic_L", c('base', 'distribution', 'p1', 'p2')] <- c(.5, 'beta', x$a, x$b)
+# logistic x0 (timing of half of social distancing)
+x = gamma.parms.from.quantiles(q = c(7,21), p = c(.025, .975), plot = T)
+df[df$param == "logistic_x0", c('base', 'distribution', 'p1', 'p2')] <- c(14, 'gamma', x$shape, x$scale)
+
+# logistic k (speed of onset)
+x = gamma.parms.from.quantiles(q = c(.25,2), p = c(.025, .975), plot = T)
+df[df$param == "logistic_k", c('base', 'distribution', 'p1', 'p2')] <- c(1, 'gamma', x$shape, x$scale)
+
 
 write.csv(df, "~/projects/chime_sims/data/parameters.csv")
 

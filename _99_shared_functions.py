@@ -25,25 +25,6 @@ def write_txt(str, path):
     text_file.write(str)
     text_file.close()
 
-# # pull parameters, potentially as a draw
-# def getparm(x, p_df, random_draw=False, get_prob = False):
-#     if random_draw is False:
-#         return float(p_df.base.loc[p_df.param == x])
-#     else:
-#         distro = p_df.distribution.loc[p_df.param == x].iloc[0]
-#         if distro != "constant":
-#             p = tuple(p_df[['p1', 'p2']].loc[p_df.param == x].iloc[0])
-#             draw = getattr(np.random, distro)(*p)
-#             if get_prob is True:
-#                 p = (draw,)+p
-#                 prob = getattr(sps, distro).pdf(*p)
-#                 return draw, prob
-#             else:
-#                 return draw
-#         else:
-#             return float(p_df.base.loc[p_df.param == x])
-
-
 
 # SIR simulation
 def sir(y, beta, gamma, N):
@@ -62,18 +43,25 @@ def sir(y, beta, gamma, N):
 
 
 # Run the SIR model forward in time
-def sim_sir(S, I, R, beta, gamma, n_days):
+def sim_sir(S, I, R, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
     N = S + I + R
     s, i, r = [S], [I], [R]
     for day in range(n_days):
         y = S, I, R
-        S, I, R = sir(y, beta, gamma, N)
+        # evaluate logistic
+        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = n_days))
+        S, I, R = sir(y, beta_t, gamma, N)
         s.append(S)
         i.append(I)
         r.append(R)
-
     s, i, r = np.array(s), np.array(i), np.array(r)
     return s, i, r
+
+def logistic(L, k, x0, x):
+    return L/(1+np.exp(-k*(x-x0)))
+
+# y = 1-logistic(.5, .5, 10, np.arange(0, 30))
+# plt.plot(np.arange(0, 30), y)
 
 
 def qdraw(qvec, p_df = params):
@@ -111,6 +99,7 @@ def jumper(start, jump_sd):
     newq = sps.norm.cdf(probit)
     return newq
 
+
 def SIR_from_params(p_df):
     '''
     This function takes the output from the qdraw function
@@ -129,6 +118,9 @@ def SIR_from_params(p_df):
     recovery_days = float(p_df.val.loc[p_df.param == 'recovery_days'])
     mkt_share = float(p_df.val.loc[p_df.param == 'mkt_share'])
     region_pop = float(p_df.val.loc[p_df.param == 'region_pop'])
+    logistic_k = float(p_df.val.loc[p_df.param == 'logistic_k'])
+    logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
+    logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
     #
     gamma = 1 / recovery_days  # , random_draw=random_draw)
     doubling_time = doubling_time
@@ -143,7 +135,10 @@ def SIR_from_params(p_df):
                       R=0,
                       beta=beta,
                       gamma=gamma,
-                      n_days=n_days)
+                      n_days=n_days,
+                      logistic_L = logistic_L,
+                      logistic_k = logistic_k,
+                      logistic_x0 = logistic_x0)
 
     hosp_raw = hosp_prop
     ICU_raw = hosp_raw * ICU_prop  # coef param

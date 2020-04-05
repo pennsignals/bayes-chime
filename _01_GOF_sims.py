@@ -12,65 +12,117 @@ pd.options.display.max_columns = 4000
 
 datadir = f'{os.getcwd()}/data/'
 outdir = f'{os.getcwd()}/output/'
+figdir = f'{os.getcwd()}/figures/'
 
 # import the census time series and set the zero day to be the first instance of zero
-when_to_start = 0
+when_to_start = 1
 census_ts = pd.read_csv(f"{datadir}census_ts.csv")#.iloc[when_to_start:,:]
-census_ts.census *=.3 # this turns hosp into vent, crudely
+# impute vent with the proportion of hosp.  this is a crude hack
+census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
+
 nobs = census_ts.shape[0]
 
 # define vent capacity
 vent_capacity = 183
 
-
+pos = np.random.uniform(size = params.shape[0])
 def eval_pos(pos):
     '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
     draw = SIR_from_params(qdraw(pos))
-    residuals = draw['arr'][:nobs,5][-7:] - census_ts.census[-7:] # 5 corresponds with vent census
+    # loss for vent
+    residuals = draw['arr'][when_to_start:nobs,5] - census_ts.vent[when_to_start:] # 5 corresponds with vent census
+    if any(residuals == 0):
+        residuals[residuals == 0] = .01
     sigma2 = np.var(residuals)
     LL = np.sum(np.log((residuals**2)/(2*sigma2)))
     Lprior = np.log(draw['parms'].prob).sum()
-    posterior = LL + Lprior
+    posterior_vent = LL + Lprior
+    # loss for hosp
+    residuals = draw['arr'][when_to_start:nobs,3] - census_ts.hosp[when_to_start:] # 5 corresponds with vent census
+    if any(residuals == 0):
+        residuals[residuals == 0] = .01
+    sigma2 = np.var(residuals)
+    LL = np.sum(np.log((residuals**2)/(2*sigma2)))
+    Lprior = np.log(draw['parms'].prob).sum()
+    posterior_hosp = LL + Lprior
+    # average them
+    posterior = np.mean([posterior_hosp, posterior_vent])    
     out = dict(pos = pos,
                draw = draw,
                posterior = posterior)
     return(out)
 
 # list of dictionaries, to put together later
-outdicts = []
 a,b = [], []
 jump_sd = .1
 
-# initial conditions
-current_pos = eval_pos(np.repeat(.5, 13))
 
-for ii in range(10000):
-    try:
-        proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
-        p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
-        alpha = np.random.uniform(0,1)
-        b.append(proposed_pos['posterior'])
-        if alpha < p_accept:
-            current_pos = proposed_pos
+def chain(seed):
+    np.random.seed(seed)
+    current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
+    outdicts = []
+    for ii in range(10000):
+        try:
+            proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
+            p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
+            alpha = np.random.uniform(0,1)
+            if alpha < p_accept:
+                current_pos = proposed_pos
+        
+        except Exception as e:
+            print(e)
+        # append the relevant results
+        out = {current_pos['draw']['parms'].param[i]:current_pos['draw']['parms'].val[i] for i in range(params.shape[0])}
+        out.update({"days_until_overacpacity": int(np.apply_along_axis(lambda x: np.where((x - vent_capacity) > 0)[0][0] \
+                                                                if max(x) > vent_capacity else -9999, axis=0,
+                                                                arr=current_pos['draw']['arr'][:,5]))})
+        out.update({"peak_demand":np.max(current_pos['draw']['arr'][:,5])})
+        out.update({"arr": current_pos['draw']['arr']})
+        out.update({"iter":ii})
+        out.update({"chain":seed})
+        out.update({'posterior':proposed_pos['posterior']})
+        outdicts.append(out)
+    return pd.DataFrame(outdicts)
 
-    except Exception as e:
-        print(e)
-    # append the relevant results
-    current_pos['draw']['parms']
-    out = {current_pos['draw']['parms'].param[i]:current_pos['draw']['parms'].val[i] for i in range(13)}
-    out.update({"days_until_overacpacity": int(np.apply_along_axis(lambda x: np.where((x - vent_capacity) > 0)[0][0] \
-                                                            if max(x) > vent_capacity else -9999, axis=0,
-                                                            arr=current_pos['draw']['arr'][:,5]))})
-    out.update({"peak_demand":np.max(current_pos['draw']['arr'][:,5])})
-    outdicts.append(out)
 
-plt.plot(b)
+pool = mp.Pool(mp.cpu_count())
+chains = pool.map(chain, list(range(16)))
+pool.close()
 
-df = pd.DataFrame(outdicts)
-df.head()
+df = pd.concat(chains)
+df.to_pickle(f'{outdir}chains.pkl')
 
-i=0
-i+=1
-plt.plot(df.iloc[:,i])
+# # remove burnin
+# df = df.loc[df.iter>1000]
 
-current_pos['draw']['parms']
+# # plot of logistic curves
+# def logistic(L, k, x0, x):
+#     return L/(1+np.exp(-k*(x-x0)))
+
+# qlist = []
+# for day in range(census_ts.shape[0]):
+#     ldist = logistic(df.logistic_L, 
+#                      df.logistic_k,
+#                      df.logistic_x0,
+#                      day)
+#     qlist.append(np.quantile(ldist, [.025, .5, .975]))
+
+# qmat = np.vstack(qlist)
+
+# plt.plot(1-qmat[:,1])
+# plt.plot(1-qmat[:,0])
+# plt.plot(1-qmat[:,2])
+
+# plt.plot(b)
+
+# df = pd.DataFrame(outdicts)
+
+# fig, ax = plt.subplots(figsize=(16, 40), ncols=1, nrows=17)
+# for i in range(17):
+#     ax[i].plot(df.iloc[:,i])
+#     ax[i].set_title(df.columns[i], fontsize=12, fontweight='bold')
+# plt.tight_layout()
+# fig.savefig(f'{figdir}foo.pdf')
+# plt.tight_layout()
+
+
