@@ -559,7 +559,7 @@ df[df$param == "recovery_days", c("base", 'distribution', 'p1', 'p2')] <- c(14, 
 x = beta.parms.from.quantiles(q = c(.2,.9), p = c(.025, .975), plot = T)
 df[df$param == "logistic_L", c('base', 'distribution', 'p1', 'p2')] <- c(.5, 'beta', x$a, x$b)
 # logistic x0 (timing of half of social distancing)
-x = gamma.parms.from.quantiles(q = c(7,21), p = c(.025, .975), plot = T)
+x = gamma.parms.from.quantiles(q = c(7,35), p = c(.025, .975), plot = T)
 df[df$param == "logistic_x0", c('base', 'distribution', 'p1', 'p2')] <- c(14, 'gamma', x$shape, x$scale)
 
 # logistic k (speed of onset)

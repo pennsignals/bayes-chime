@@ -49,7 +49,7 @@ def sim_sir(S, I, R, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
     for day in range(n_days):
         y = S, I, R
         # evaluate logistic
-        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = n_days))
+        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
         S, I, R = sir(y, beta_t, gamma, N)
         s.append(S)
         i.append(I)
@@ -106,7 +106,7 @@ def SIR_from_params(p_df):
     '''
     #
     n_hosp = int(p_df.val.loc[p_df.param == 'n_hosp'])
-    n_infec = int(p_df.val.loc[p_df.param == 'n_infec'])
+    # n_infec = int(p_df.val.loc[p_df.param == 'n_infec'])
     doubling_time = float(p_df.val.loc[p_df.param == 'doubling_time'])
     soc_dist = float(p_df.val.loc[p_df.param == 'soc_dist'])
     hosp_prop = float(p_df.val.loc[p_df.param == 'hosp_prop'])
@@ -126,12 +126,12 @@ def SIR_from_params(p_df):
     doubling_time = doubling_time
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
-    detection_prob = n_infec / total_infections
+    # detection_prob = n_infec / total_infections
     beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
     n_days = 200
     #
-    s, i, r = sim_sir(S=region_pop,
-                      I=n_infec / detection_prob,
+    s, i, r = sim_sir(S=region_pop - total_infections,
+                      I=total_infections,#n_infec / detection_prob,
                       R=0,
                       beta=beta,
                       gamma=gamma,

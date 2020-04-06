@@ -15,8 +15,7 @@ outdir = f'{os.getcwd()}/output/'
 figdir = f'{os.getcwd()}/figures/'
 
 # import the census time series and set the zero day to be the first instance of zero
-when_to_start = 1
-census_ts = pd.read_csv(f"{datadir}census_ts.csv")#.iloc[when_to_start:,:]
+census_ts = pd.read_csv(f"{datadir}census_ts.csv")
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
 
@@ -25,47 +24,53 @@ nobs = census_ts.shape[0]
 # define vent capacity
 vent_capacity = 183
 
-pos = np.random.uniform(size = params.shape[0])
 def eval_pos(pos):
     '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
     draw = SIR_from_params(qdraw(pos))
     # loss for vent
-    residuals = draw['arr'][when_to_start:nobs,5] - census_ts.vent[when_to_start:] # 5 corresponds with vent census
-    if any(residuals == 0):
-        residuals[residuals == 0] = .01
-    sigma2 = np.var(residuals)
-    LL = np.sum(np.log((residuals**2)/(2*sigma2)))
-    Lprior = np.log(draw['parms'].prob).sum()
-    posterior_vent = LL + Lprior
+    residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
+    if any(residuals_vent == 0):
+        residuals_vent[residuals_vent == 0] = .01
+    sigma2 = np.var(residuals_vent)
+    LLv = loglik(residuals_vent)#np.sum(-np.log((residuals_vent**2)/(2*sigma2)))
+    Lpriorv = np.log(draw['parms'].prob).sum()
+    posterior_vent = LLv + Lpriorv
     # loss for hosp
-    residuals = draw['arr'][when_to_start:nobs,3] - census_ts.hosp[when_to_start:] # 5 corresponds with vent census
-    if any(residuals == 0):
-        residuals[residuals == 0] = .01
-    sigma2 = np.var(residuals)
-    LL = np.sum(np.log((residuals**2)/(2*sigma2)))
-    Lprior = np.log(draw['parms'].prob).sum()
-    posterior_hosp = LL + Lprior
+    residuals_hosp = draw['arr'][:nobs,3] - census_ts.hosp # 5 corresponds with vent census
+    if any(residuals_hosp == 0):
+        residuals_hosp[residuals_hosp == 0] = .01
+    sigma2 = np.var(residuals_hosp)
+    LLh = loglik(residuals_hosp)#np.sum(-np.log((residuals_hosp**2)/(2*sigma2)))    
+    Lpriorh = np.log(draw['parms'].prob).sum()
+    posterior_hosp = LLh + Lpriorh
     # average them
     posterior = np.mean([posterior_hosp, posterior_vent])    
     out = dict(pos = pos,
                draw = draw,
-               posterior = posterior)
+               posterior = posterior,
+               residuals_vent = residuals_vent,
+               residuals_hosp = residuals_hosp)
     return(out)
 
-# list of dictionaries, to put together later
-a,b = [], []
-jump_sd = .1
 
+def loglik(r):
+    return -len(r)/2*(np.log(2*np.pi*np.var(r))) - 1/(2*np.pi*np.var(r))*np.sum(r**2)
+
+# specifying the standard deviation of the nump, in gaussian quantile space per the jumper function
+jump_sd = .1
+seed  =5
 
 def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    for ii in range(10000):
+    for ii in range(5000):
         try:
             proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
+    
             p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
             alpha = np.random.uniform(0,1)
+            
             if alpha < p_accept:
                 current_pos = proposed_pos
         
@@ -81,6 +86,8 @@ def chain(seed):
         out.update({"iter":ii})
         out.update({"chain":seed})
         out.update({'posterior':proposed_pos['posterior']})
+        out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
+        out.update({'residuals_vent':proposed_pos['residuals_vent']})
         outdicts.append(out)
     return pd.DataFrame(outdicts)
 
