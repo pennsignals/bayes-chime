@@ -49,7 +49,7 @@ def sim_sir(S, I, R, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
     for day in range(n_days):
         y = S, I, R
         # evaluate logistic
-        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = n_days))
+        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
         S, I, R = sir(y, beta_t, gamma, N)
         s.append(S)
         i.append(I)
@@ -130,8 +130,8 @@ def SIR_from_params(p_df):
     beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
     n_days = 200
     #
-    s, i, r = sim_sir(S=region_pop,
-                      I=n_infec / detection_prob,
+    s, i, r = sim_sir(S=region_pop-total_infections,
+                      I=total_infections,
                       R=0,
                       beta=beta,
                       gamma=gamma,
