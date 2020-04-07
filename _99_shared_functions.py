@@ -27,10 +27,10 @@ def write_txt(str, path):
 
 
 # SIR simulation
-def sir(y, alpha, beta, gamma, N):
+def sir(y, alpha, beta, gamma, nu, N):
     S, E, I, R = y
-    Sn = (-beta * S * I) + S
-    En = (beta * S * I - alpha * E) + E
+    Sn = (-beta * (S/N)**nu * I) + S
+    En = (beta * (S/N)**nu * I - alpha * E) + E
     In = (alpha * E - gamma * I) + I
     Rn = gamma * I + R
 
@@ -47,14 +47,14 @@ def sir(y, alpha, beta, gamma, N):
 
 
 # Run the SIR model forward in time
-def sim_sir(S, E, I, R, alpha, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
+def sim_sir(S, E, I, R, alpha, beta, gamma, nu, n_days, logistic_L, logistic_k, logistic_x0):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
     for day in range(n_days):
         y = S, E, I, R
         # evaluate logistic
         beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
-        S, E, I, R = sir(y, alpha, beta_t, gamma, N)
+        S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
         e.append(E)
         i.append(I)
@@ -127,6 +127,7 @@ def SIR_from_params(p_df):
     logistic_k = float(p_df.val.loc[p_df.param == 'logistic_k'])
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
+    nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
     #
     alpha = 1 / incubation_days
     gamma = 1 / recovery_days  # , random_draw=random_draw)
@@ -134,17 +135,18 @@ def SIR_from_params(p_df):
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
     # detection_prob = n_infec / total_infections
-    beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
+    beta = (1 + intrinsic_growth_rate + gamma) * (1 - soc_dist)
     n_days = 200
     offset = int(incubation_days)
     #
     s, e, i, r = sim_sir(S=region_pop - total_infections,
-                      E=0,
+                      E=0.0,
                       I=total_infections,#n_infec / detection_prob,
-                      R=0,
+                      R=0.0,
                       alpha=alpha,
                       beta=beta,
                       gamma=gamma,
+                      nu=nu,
                       n_days=n_days + offset,
                       logistic_L = logistic_L,
                       logistic_k = logistic_k,

@@ -64,8 +64,8 @@ def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    n_iters = 5000
-    U = np.random.uniform(0,1,n_iters)
+    n_iters = 10000
+    U = np.random.uniform(0, 1, n_iters)
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
@@ -93,9 +93,10 @@ def chain(seed):
             print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
+n_chains = 8
 
 pool = mp.Pool(mp.cpu_count())
-chains = pool.map(chain, list(range(16)))
+chains = pool.map(chain, list(range(n_chains)))
 pool.close()
 
 df = pd.concat(chains)

@@ -29,7 +29,7 @@ vent_capacity = 183
 df = pd.read_pickle(f'{outdir}chains.pkl')
 
 # remove burnin
-df = df.loc[(df.iter>1000) & (~df.chain.isin([1, 12]))]
+df = df.loc[(df.iter>1000)] #& (~df.chain.isin([1, 12]))]
 
 
 # plot of logistic curves
@@ -166,7 +166,7 @@ for var_i in range(params.shape[0]):
 
 toplot = df[['doubling_time', 'hosp_prop',
        'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'incubation_days' , 'recovery_days', 'logistic_k', 'logistic_x0',
-       'logistic_L', 'days_until_overacpacity', 'peak_demand', 'posterior']]
+       'logistic_L', 'nu', 'days_until_overacpacity', 'peak_demand', 'posterior']]
 toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
 fig, ax = plt.subplots(figsize=(8, 80), ncols=1, nrows=toplot.shape[1])
