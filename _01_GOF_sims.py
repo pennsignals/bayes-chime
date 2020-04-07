@@ -21,6 +21,9 @@ for i, arg in enumerate(sys.argv):
         print(f"Argument {i:>6}: {arg}")
 
 hospital = sys.argv[1]
+n_chains = int(sys.argv[2])
+n_iters = int(sys.argv[3])
+
 census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
 # import parameters
 params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
@@ -74,7 +77,6 @@ def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    n_iters = 5000
     U = np.random.uniform(0, 1, n_iters)
     for ii in range(n_iters):
         try:
@@ -104,7 +106,6 @@ def chain(seed):
             print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
-n_chains = 8
 
 pool = mp.Pool(mp.cpu_count())
 chains = pool.map(chain, list(range(n_chains)))
