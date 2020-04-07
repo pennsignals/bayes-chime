@@ -29,8 +29,8 @@ def write_txt(str, path):
 # SIR simulation
 def sir(y, alpha, beta, gamma, nu, N):
     S, E, I, R = y
-    Sn = (-beta * (S/N)**nu * I) + S
-    En = (beta * (S/N)**nu * I - alpha * E) + E
+    Sn = (-beta * (S / N)**nu * I ) + S
+    En = (beta * (S / N)**nu * I - alpha * E) + E
     In = (alpha * E - gamma * I) + I
     Rn = gamma * I + R
 
@@ -127,6 +127,7 @@ def SIR_from_params(p_df):
     logistic_k = float(p_df.val.loc[p_df.param == 'logistic_k'])
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
+    beta = float(p_df.val.loc[p_df.param == 'beta']) # get beta directly rather than via doubling time
     nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
     #
     alpha = 1 / incubation_days
@@ -135,14 +136,20 @@ def SIR_from_params(p_df):
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
     # detection_prob = n_infec / total_infections
-    beta = (intrinsic_growth_rate + gamma) * (1 - soc_dist)
+    #beta = (intrinsic_growth_rate + alpha + gamma)
     n_days = 200
 
     # Offset by the incubation period to start the sim
     # that many days before the first hospitalization
     # Estimate the number Exposed from the number hospitalized
     # on the first day of non-zero covid hospitalizations. 
-    offset = int(incubation_days)
+    from scipy.stats import expon
+    # Since incubation_days is exponential in SEIR, we start
+    # the time `offset` days before the first hospitalization
+    # We determine offset by allowing enough time for the majority
+    # of the initial exposures to become infected.
+    offset = expon.ppf(0.99, 1 / incubation_days) # Enough time for 95% of exposed to become infected
+    offset = int(offset)
     #
     s, e, i, r = sim_sir(S=region_pop - total_infections,
                       E=total_infections,
@@ -199,7 +206,12 @@ def SIR_from_params(p_df):
     output = dict(days=np.asarray(proj.day),
                   arr=np.asarray(proj)[:, 1:],
                   names=proj.columns.tolist()[1:],
-                  parms = p_df)
+                  parms = p_df,
+                  s=s,
+                  e=e,
+                  i=i,
+                  r=r,
+                  offset=offset)
     return output
     
     

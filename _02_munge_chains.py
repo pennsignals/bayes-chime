@@ -29,7 +29,7 @@ vent_capacity = 183
 df = pd.read_pickle(f'{outdir}chains.pkl')
 
 # remove burnin
-df = df.loc[(df.iter>1000)] #& (~df.chain.isin([1, 12]))]
+df = df.loc[(df.iter>800)] #& (~df.chain.isin([1, 12]))]
 
 
 # plot of logistic curves
@@ -75,7 +75,7 @@ plt.xlabel(f'Posterior mean by chain')
 
 # predictive plot
 arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
-arrq = np.quantile(arrs, axis = 0, q = [.025, .25, .5, .75, .975])
+arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
 
 howfar = 200
 fig, ax = plt.subplots(figsize=(16, 8), ncols=2, nrows=1)
@@ -86,17 +86,19 @@ ax[0].set_xlabel(f'Days since March 14', fontsize=12, fontweight='bold')
 ax[0].fill_between(x = list(range(howfar)),
                    y1 = arrq[0,:howfar,3],
                    y2 = arrq[4,:howfar,3], 
-                   label = '95% Credible Region',
+                   label = '90% Credible Region',
                    alpha = .3,
                    lw = 2,
-                   edgecolor = "k")
+                   edgecolor = "k",
+                   alpha=0.5)
 ax[0].fill_between(x = list(range(howfar)),
                    y1 = arrq[1,:howfar,3],
                    y2 = arrq[3,:howfar,3], 
                    label = '50% Credible Region',
                    alpha = .3,
                    lw = 2,
-                   edgecolor = "k")
+                   edgecolor = "k",
+                   alpha=0.5)
 ax[0].plot(list(range(len(census_ts.hosp))), census_ts.hosp, 
            color = "red",
            label = "observed")

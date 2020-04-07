@@ -28,23 +28,24 @@ def eval_pos(pos):
     '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
     draw = SIR_from_params(qdraw(pos))
     # loss for vent
-    residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
-    if any(residuals_vent == 0):
-        residuals_vent[residuals_vent == 0] = .01
-    sigma2 = np.var(residuals_vent)
-    LLv = loglik(residuals_vent)#np.sum(-np.log((residuals_vent**2)/(2*sigma2)))
-    Lpriorv = np.log(draw['parms'].prob).sum()
-    posterior_vent = LLv + Lpriorv
+    LL = 0
+    if census_ts.vent.sum() > 0:
+        residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
+        if any(residuals_vent == 0):
+            residuals_vent[residuals_vent == 0] = .01
+        sigma2 = np.var(residuals_vent)
+        LL += loglik(residuals_vent)
+
     # loss for hosp
     residuals_hosp = draw['arr'][:nobs,3] - census_ts.hosp # 5 corresponds with vent census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = .01
     sigma2 = np.var(residuals_hosp)
-    LLh = loglik(residuals_hosp)#np.sum(-np.log((residuals_hosp**2)/(2*sigma2)))    
-    Lpriorh = np.log(draw['parms'].prob).sum()
-    posterior_hosp = LLh + Lpriorh
-    # average them
-    posterior = np.mean([posterior_hosp, posterior_vent])    
+    LL += loglik(residuals_hosp)
+
+    Lprior = np.log(draw['parms'].prob).sum()
+    posterior = LL +Lprior
+
     out = dict(pos = pos,
                draw = draw,
                posterior = posterior,
@@ -64,7 +65,7 @@ def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    n_iters = 10000
+    n_iters = 2000
     U = np.random.uniform(0, 1, n_iters)
     for ii in range(n_iters):
         try:
@@ -88,12 +89,13 @@ def chain(seed):
         out.update({'posterior':proposed_pos['posterior']})
         out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
         out.update({'residuals_vent':proposed_pos['residuals_vent']})
+        out.update({'offset': current_pos['draw']['offset']})
         outdicts.append(out)
         if (ii % 1000) == 0:
             print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
-n_chains = 8
+n_chains = 4
 
 pool = mp.Pool(mp.cpu_count())
 chains = pool.map(chain, list(range(n_chains)))
