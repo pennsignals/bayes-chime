@@ -135,13 +135,18 @@ def SIR_from_params(p_df):
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
     # detection_prob = n_infec / total_infections
-    beta = (1 + intrinsic_growth_rate + gamma) * (1 - soc_dist)
+    beta = (intrinsic_growth_rate + gamma) * (1 - soc_dist)
     n_days = 200
+
+    # Offset by the incubation period to start the sim
+    # that many days before the first hospitalization
+    # Estimate the number Exposed from the number hospitalized
+    # on the first day of non-zero covid hospitalizations. 
     offset = int(incubation_days)
     #
     s, e, i, r = sim_sir(S=region_pop - total_infections,
-                      E=0.0,
-                      I=total_infections,#n_infec / detection_prob,
+                      E=total_infections,
+                      I=0.0,#n_infec / detection_prob,
                       R=0.0,
                       alpha=alpha,
                       beta=beta,
