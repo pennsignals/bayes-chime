@@ -40,7 +40,7 @@ qlist = []
 for day in range(census_ts.shape[0]):
     ldist = logistic(df.logistic_L, 
                       df.logistic_k,
-                      df.logistic_x0,
+                      df.logistic_x0 - df.incubation_days.astype(int),
                       day)
     qlist.append(np.quantile(ldist, [.025, .5, .975]))
 
