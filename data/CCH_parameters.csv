@@ -9,8 +9,8 @@
 8,8,8,8,hosp_LOS,12,gamma,136.2148007,0.087488137,Hospital Length of Stay
 9,9,9,9,ICU_LOS,9,gamma,32.47013734,0.269338749,ICU Length of Stay
 10,10,10,10,vent_LOS,1.111111111,gamma,32.47013615,0.033667345,coef on ICU LOS
-11,11,11,11,mkt_share,0.9,constant,NA,NA,Hospital Market Share (%)
-12,12,12,12,region_pop,519293,constant,NA,NA,Regional Population
+11,11,11,11,mkt_share,0.38,constant,NA,NA,Hospital Market Share (%)
+12,12,12,12,region_pop,440000,constant,NA,NA,Regional Population
 13,13,13,13,incubation_days,5,gamma,9.514379271,0.513980244,Days from exposure to infectiousness
 14,14,14,14,recovery_days,14,gamma,9.833457434,1.642265575,Days from infection to recovery
 15,15,15,15,logistic_k,1,gamma,4.018953794,0.22738215,logistic growth rate
