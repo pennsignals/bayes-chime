@@ -16,8 +16,6 @@ datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 
-# import parameters
-params = pd.read_csv(f"{datadir}parameters.csv")
 
 
 def write_txt(str, path):
@@ -69,13 +67,13 @@ def logistic(L, k, x0, x):
 # plt.plot(np.arange(0, 30), y)
 
 
-def qdraw(qvec, p_df = params):
+def qdraw(qvec, p_df):
     '''
     Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
     It returns a bunch of parameters for inputting into SIR
     It'll also return their probability under the prior
     '''
-    assert len(qvec) == params.shape[0]
+    assert len(qvec) == p_df.shape[0]
     outdicts = []
     for i in range(len(qvec)):
         if p_df.distribution.iloc[i] == 'constant':

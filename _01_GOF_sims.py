@@ -7,6 +7,8 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from scipy import stats as sps
 
+import sys
+
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
@@ -15,7 +17,13 @@ outdir = f'{os.getcwd()}/output/'
 figdir = f'{os.getcwd()}/figures/'
 
 # import the census time series and set the zero day to be the first instance of zero
-census_ts = pd.read_csv(f"{datadir}census_ts.csv")
+for i, arg in enumerate(sys.argv):
+        print(f"Argument {i:>6}: {arg}")
+
+hospital = sys.argv[1]
+census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
+# import parameters
+params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
 
@@ -26,9 +34,10 @@ vent_capacity = 183
 
 def eval_pos(pos):
     '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
-    draw = SIR_from_params(qdraw(pos))
+    draw = SIR_from_params(qdraw(pos, params))
     # loss for vent
     LL = 0
+    residuals_vent = None
     if census_ts.vent.sum() > 0:
         residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
         if any(residuals_vent == 0):
@@ -44,7 +53,7 @@ def eval_pos(pos):
     LL += loglik(residuals_hosp)
 
     Lprior = np.log(draw['parms'].prob).sum()
-    posterior = LL +Lprior
+    posterior = LL + Lprior
 
     out = dict(pos = pos,
                draw = draw,
@@ -65,7 +74,7 @@ def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    n_iters = 2000
+    n_iters = 5000
     U = np.random.uniform(0, 1, n_iters)
     for ii in range(n_iters):
         try:
@@ -95,14 +104,14 @@ def chain(seed):
             print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
-n_chains = 4
+n_chains = 8
 
 pool = mp.Pool(mp.cpu_count())
 chains = pool.map(chain, list(range(n_chains)))
 pool.close()
 
 df = pd.concat(chains)
-df.to_pickle(f'{outdir}chains.pkl')
+df.to_pickle(f'{outdir}{hospital}_chains.pkl')
 
 # # remove burnin
 # df = df.loc[df.iter>1000]
