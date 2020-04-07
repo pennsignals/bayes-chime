@@ -58,22 +58,22 @@ def loglik(r):
 
 # specifying the standard deviation of the nump, in gaussian quantile space per the jumper function
 jump_sd = .1
-seed  =5
+seed = 5
 
 def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    for ii in range(5000):
+    n_iters = 5000
+    U = np.random.uniform(0,1,n_iters)
+    for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
-    
             p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
-            alpha = np.random.uniform(0,1)
-            
-            if alpha < p_accept:
+
+            if U[ii] < p_accept:
                 current_pos = proposed_pos
-        
+
         except Exception as e:
             print(e)
         # append the relevant results
@@ -89,8 +89,8 @@ def chain(seed):
         out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
         out.update({'residuals_vent':proposed_pos['residuals_vent']})
         outdicts.append(out)
-    if (ii % 1000) == 0:
-        print('chain', seed, 'iter', ii)
+        if (ii % 1000) == 0:
+            print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
 
