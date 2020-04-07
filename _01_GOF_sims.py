@@ -89,6 +89,8 @@ def chain(seed):
         out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
         out.update({'residuals_vent':proposed_pos['residuals_vent']})
         outdicts.append(out)
+    if (ii % 1000) == 0:
+        print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
 

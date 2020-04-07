@@ -27,35 +27,40 @@ def write_txt(str, path):
 
 
 # SIR simulation
-def sir(y, beta, gamma, N):
-    S, I, R = y
+def sir(y, alpha, beta, gamma, N):
+    S, E, I, R = y
     Sn = (-beta * S * I) + S
-    In = (beta * S * I - gamma * I) + I
+    En = (beta * S * I - alpha * E) + E
+    In = (alpha * E - gamma * I) + I
     Rn = gamma * I + R
+
     if Sn < 0:
         Sn = 0
     if In < 0:
         In = 0
     if Rn < 0:
         Rn = 0
-    scale = N / (Sn + In + Rn)
-    return Sn * scale, In * scale, Rn * scale
+    if En < 0:
+        En = 0
+    scale = N / (Sn + En + In + Rn)
+    return Sn * scale, En * scale, In * scale, Rn * scale
 
 
 # Run the SIR model forward in time
-def sim_sir(S, I, R, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
-    N = S + I + R
-    s, i, r = [S], [I], [R]
+def sim_sir(S, E, I, R, alpha, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
+    N = S + E + I + R
+    s, e, i, r = [S], [E], [I], [R]
     for day in range(n_days):
-        y = S, I, R
+        y = S, E, I, R
         # evaluate logistic
         beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
-        S, I, R = sir(y, beta_t, gamma, N)
+        S, E, I, R = sir(y, alpha, beta_t, gamma, N)
         s.append(S)
+        e.append(E)
         i.append(I)
         r.append(R)
-    s, i, r = np.array(s), np.array(i), np.array(r)
-    return s, i, r
+    s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
+    return s, e, i, r
 
 def logistic(L, k, x0, x):
     return L/(1+np.exp(-k*(x-x0)))
@@ -106,6 +111,7 @@ def SIR_from_params(p_df):
     '''
     #
     n_hosp = int(p_df.val.loc[p_df.param == 'n_hosp'])
+    incubation_days = float(p_df.val.loc[p_df.param == 'incubation_days'])
     # n_infec = int(p_df.val.loc[p_df.param == 'n_infec'])
     doubling_time = float(p_df.val.loc[p_df.param == 'doubling_time'])
     soc_dist = float(p_df.val.loc[p_df.param == 'soc_dist'])
@@ -122,6 +128,7 @@ def SIR_from_params(p_df):
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
     #
+    alpha = 1 / incubation_days
     gamma = 1 / recovery_days  # , random_draw=random_draw)
     doubling_time = doubling_time
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
@@ -129,23 +136,27 @@ def SIR_from_params(p_df):
     # detection_prob = n_infec / total_infections
     beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
     n_days = 200
+    offset = int(incubation_days)
     #
-    s, i, r = sim_sir(S=region_pop - total_infections,
+    s, e, i, r = sim_sir(S=region_pop - total_infections,
+                      E=0,
                       I=total_infections,#n_infec / detection_prob,
                       R=0,
+                      alpha=alpha,
                       beta=beta,
                       gamma=gamma,
-                      n_days=n_days,
+                      n_days=n_days + offset,
                       logistic_L = logistic_L,
                       logistic_k = logistic_k,
-                      logistic_x0 = logistic_x0)
+                      logistic_x0 = logistic_x0 + offset)
 
     hosp_raw = hosp_prop
     ICU_raw = hosp_raw * ICU_prop  # coef param
     vent_raw = ICU_raw * vent_prop  # coef param
     
-    ds = np.diff(s*-1)
+    ds = np.diff(i) + np.diff(r)
     ds = np.array([0]+list(ds))
+    ds = ds[offset:]
 
     hosp = ds * hosp_raw * mkt_share
     icu = ds * ICU_raw * mkt_share
