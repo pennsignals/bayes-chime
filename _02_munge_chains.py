@@ -77,7 +77,7 @@ plt.xlabel(f'Posterior mean by chain')
 arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
 arrq = np.quantile(arrs, axis = 0, q = [.025, .25, .5, .75, .975])
 
-howfar = 40
+howfar = 200
 fig, ax = plt.subplots(figsize=(16, 8), ncols=2, nrows=1)
 # hosp
 ax[0].plot(arrq[2,:howfar,3], label = 'posterior median')
@@ -165,7 +165,7 @@ for var_i in range(params.shape[0]):
 # df = pd.DataFrame(outdicts)
 
 toplot = df[['doubling_time', 'hosp_prop',
-       'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'recovery_days', 'logistic_k', 'logistic_x0',
+       'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'incubation_days' , 'recovery_days', 'logistic_k', 'logistic_x0',
        'logistic_L', 'days_until_overacpacity', 'peak_demand', 'posterior']]
 toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
@@ -191,7 +191,7 @@ for i in range(len(toplot.columns[:-3])):
         x = sps.beta.ppf(pspace, params.loc[params.param == cname, 'p1'], params.loc[params.param == cname, 'p2'])
         y = sps.beta.pdf(x, params.loc[params.param == cname, 'p1'], params.loc[params.param == cname, 'p2'])
     ax[i].plot(x, y, label = "prior")
-    ax[i].hist(toplot[cname], density = True, label = "posterior")
+    ax[i].hist(toplot[cname], density = True, label = "posterior", bins=30)
     ax[i].set_xlabel(params.loc[params.param == cname, 'description'].iloc[0])
     ax[i].legend()
 plt.tight_layout()
@@ -199,24 +199,24 @@ fig.savefig(f'{figdir}marginal_posteriors_v2.pdf')
 plt.tight_layout()
 
     
-        if p_df.distribution.iloc[i] == 'gamma':
-            p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
-        elif p_df.distribution.iloc[i] == 'beta':
-            p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
-        elif p_df.distribution.iloc[i] == 'uniform':
-            p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
+#         if p_df.distribution.iloc[i] == 'gamma':
+#             p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
+#         elif p_df.distribution.iloc[i] == 'beta':
+#             p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
+#         elif p_df.distribution.iloc[i] == 'uniform':
+#             p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
 
-plt.plot(sps.norm.ppf(pspace))
+# plt.plot(sps.norm.ppf(pspace))
 
 
-           if p_df.distribution.iloc[i] == 'gamma':
-                p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
-            elif p_df.distribution.iloc[i] == 'beta':
-                p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
-            elif p_df.distribution.iloc[i] == 'uniform':
-                p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
-            out = dict(param = p_df.param.iloc[i],
-                       val = getattr(sps, p_df.distribution.iloc[i]).ppf(*p))
+#            if p_df.distribution.iloc[i] == 'gamma':
+#                 p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
+#             elif p_df.distribution.iloc[i] == 'beta':
+#                 p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
+#             elif p_df.distribution.iloc[i] == 'uniform':
+#                 p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
+#             out = dict(param = p_df.param.iloc[i],
+#                        val = getattr(sps, p_df.distribution.iloc[i]).ppf(*p))
 
 # import seaborn as sns
 # grid = sns.PairGrid(data= toplot,
