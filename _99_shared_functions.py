@@ -161,7 +161,7 @@ def SIR_from_params(p_df):
     ICU_raw = hosp_raw * ICU_prop  # coef param
     vent_raw = ICU_raw * vent_prop  # coef param
     
-    ds = np.diff(i) + np.diff(r)
+    ds = np.diff(i) + np.diff(r) # new infections is delta i plus delta r 
     ds = np.array([0]+list(ds))
     ds = ds[offset:]
 
