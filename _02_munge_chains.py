@@ -73,63 +73,106 @@ fig.savefig(f"{figdir}{hospital}_effective_soc_dist.pdf")
 
 
 # plot of chains
+# plot of chains
 def plt_predictive(howfar=200):
     # predictive plot
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
     arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
 
-    fig, ax = plt.subplots(figsize=(16, 8), ncols=2, nrows=1)
+    fig, ax = plt.subplots(figsize=(16, 10), ncols=2, nrows=2)
     # hosp
-    ax[0].plot(arrq[2,:howfar,3], label = 'posterior median')
-    ax[0].set_ylabel(f'Hospital census', fontsize=12, fontweight='bold')
-    ax[0].set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
-    ax[0].fill_between(x = list(range(howfar)),
+    axx = ax[0,0]
+    axx.plot(arrq[2,:howfar,3], label = 'posterior median')
+    axx.set_ylabel(f'Hospital census', fontsize=12, fontweight='bold')
+    axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
+    axx.fill_between(x = list(range(howfar)),
                        y1 = arrq[0,:howfar,3],
                        y2 = arrq[4,:howfar,3], 
                        label = '90% Credible Region',
                        alpha = .1,
                        lw = 2,
                        edgecolor = "k")
-    ax[0].fill_between(x = list(range(howfar)),
+    axx.fill_between(x = list(range(howfar)),
                        y1 = arrq[1,:howfar,3],
                        y2 = arrq[3,:howfar,3], 
                        label = '50% Credible Region',
                        alpha = .1,
                        lw = 2,
                        edgecolor = "k")
-    ax[0].plot(list(range(len(census_ts.hosp))), census_ts.hosp, 
+    axx.plot(list(range(len(census_ts.hosp))), census_ts.hosp, 
                color = "red",
                label = "observed")
-    ax[0].axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
+    axx.axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
+    axx.legend()
+    axx.grid(True)
 
-    ax[0].legend()
-    ax[0].grid(True)
-
-
-
-    ax[1].plot(arrq[2,:howfar,5], label = 'posterior median')
-    ax[1].set_ylabel(f'Vent census', fontsize=12, fontweight='bold')
-    ax[1].set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
-    ax[1].fill_between(x = list(range(howfar)),
+    axx = ax[0,1]
+    axx.plot(arrq[2,:howfar,5], label = 'posterior median')
+    axx.set_ylabel(f'Vent census', fontsize=12, fontweight='bold')
+    axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
+    axx.fill_between(x = list(range(howfar)),
                        y1 = arrq[0,:howfar,5],
                        y2 = arrq[4,:howfar,5], 
                        label = '90% Credible Region',
                        alpha = .1,
                        lw = 2,
                        edgecolor = "k",)
-    ax[1].fill_between(x = list(range(howfar)),
+    axx.fill_between(x = list(range(howfar)),
                        y1 = arrq[1,:howfar,5],
                        y2 = arrq[3,:howfar,5], 
                        label = '50% Credible Region',
                        alpha = .1,
                        lw = 2,
                        edgecolor = "k")
-    ax[1].axhline(y=vent_capacity, color='k', ls='--', label = "vent capacity")
-    ax[1].plot(list(range(len(census_ts.vent))), census_ts.vent, 
+    axx.axhline(y=vent_capacity, color='k', ls='--', label = "vent capacity")
+    axx.plot(list(range(len(census_ts.vent))), census_ts.vent, 
                color = "red",
                label = "observed")
-    ax[1].legend()
-    ax[1].grid(True)
+    axx.legend()
+    axx.grid(True)
+
+    # Admits
+    axx = ax[1,0]
+    axx.plot(arrq[2,:howfar,0], label = 'posterior median')
+    axx.set_ylabel(f'Hospital Admits', fontsize=12, fontweight='bold')
+    axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
+    axx.fill_between(x = list(range(howfar)),
+                       y1 = arrq[0,:howfar,0],
+                       y2 = arrq[4,:howfar,0], 
+                       label = '90% Credible Region',
+                       alpha = .1,
+                       lw = 2,
+                       edgecolor = "k")
+    axx.fill_between(x = list(range(howfar)),
+                       y1 = arrq[1,:howfar,0],
+                       y2 = arrq[3,:howfar,0], 
+                       label = '50% Credible Region',
+                       alpha = .1,
+                       lw = 2,
+                       edgecolor = "k")
+    axx.legend()
+    axx.grid(True)
+
+    axx = ax[1,1]
+    axx.plot(arrq[2,:howfar,2], label = 'posterior median')
+    axx.set_ylabel(f'Vent Admits', fontsize=12, fontweight='bold')
+    axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
+    axx.fill_between(x = list(range(howfar)),
+                       y1 = arrq[0,:howfar,2],
+                       y2 = arrq[4,:howfar,2], 
+                       label = '90% Credible Region',
+                       alpha = .1,
+                       lw = 2,
+                       edgecolor = "k",)
+    axx.fill_between(x = list(range(howfar)),
+                       y1 = arrq[1,:howfar,2],
+                       y2 = arrq[3,:howfar,2], 
+                       label = '50% Credible Region',
+                       alpha = .1,
+                       lw = 2,
+                       edgecolor = "k")
+    axx.legend()
+    axx.grid(True)
     fig.savefig(f"{figdir}{hospital}_forecast_{howfar}_day.pdf")
 
 plt_predictive(40)
