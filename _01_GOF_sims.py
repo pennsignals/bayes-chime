@@ -29,7 +29,7 @@ census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
 params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
-
+print(census_ts)
 nobs = census_ts.shape[0]
 
 # define vent capacity
