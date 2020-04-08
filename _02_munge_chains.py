@@ -103,6 +103,7 @@ def plt_predictive(howfar=200):
     ax[0].axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
 
     ax[0].legend()
+    ax[0].grid(True)
 
 
 
@@ -128,11 +129,43 @@ def plt_predictive(howfar=200):
                color = "red",
                label = "observed")
     ax[1].legend()
+    ax[1].grid(True)
     fig.savefig(f"{figdir}{hospital}_forecast_{howfar}_day.pdf")
 
 plt_predictive(40)
 plt_predictive(100)
 plt_predictive(200)
+
+
+def mk_projection_tables():
+    # predictive plot
+    arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
+    arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
+    column_postfix = ['5%', '25%', 'Median', '75%', '%95']
+
+    summary_df_hsp = pd.DataFrame(data=arrq[:,:,3].T,
+        columns=[f'Hospitalized Census {pf}' for pf in column_postfix])
+    summary_df_vent = pd.DataFrame(data=arrq[:,:,5].T,
+        columns=[f'Vent Census {pf}' for pf in column_postfix])
+
+
+    summary_df_hsp_admits = pd.DataFrame(data=arrq[:,:,0].T.astype(int),
+        columns=[f'Hospitalized Admits {pf}' for pf in column_postfix])
+    summary_df_vent_admits = pd.DataFrame(data=arrq[:,:,2].T.astype(int),
+        columns=[f'Vent Admits {pf}' for pf in column_postfix])
+
+    date_df = pd.DataFrame(data=pd.date_range(f'{first_day}',
+        periods=summary_df_hsp.shape[0], freq='d'),
+        columns = ['date'])
+
+    summary_df = pd.concat([date_df,
+      summary_df_hsp,
+      summary_df_vent,
+      summary_df_hsp_admits,
+      summary_df_vent_admits], 1)
+    summary_df.to_csv(f"{outdir}{hospital}_forecast.csv", index=False)
+
+mk_projection_tables()
 
 
 toplot = df[['doubling_time','beta', 'hosp_prop',
