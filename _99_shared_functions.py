@@ -16,8 +16,6 @@ datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
 figdir = f"{os.getcwd()}/figures/"
 
-# import parameters
-params = pd.read_csv(f"{datadir}parameters.csv")
 
 
 def write_txt(str, path):
@@ -27,35 +25,40 @@ def write_txt(str, path):
 
 
 # SIR simulation
-def sir(y, beta, gamma, N):
-    S, I, R = y
-    Sn = (-beta * S * I) + S
-    In = (beta * S * I - gamma * I) + I
+def sir(y, alpha, beta, gamma, nu, N):
+    S, E, I, R = y
+    Sn = (-beta * (S / N)**nu * I ) + S
+    En = (beta * (S / N)**nu * I - alpha * E) + E
+    In = (alpha * E - gamma * I) + I
     Rn = gamma * I + R
+
     if Sn < 0:
         Sn = 0
     if In < 0:
         In = 0
     if Rn < 0:
         Rn = 0
-    scale = N / (Sn + In + Rn)
-    return Sn * scale, In * scale, Rn * scale
+    if En < 0:
+        En = 0
+    scale = N / (Sn + En + In + Rn)
+    return Sn * scale, En * scale, In * scale, Rn * scale
 
 
 # Run the SIR model forward in time
-def sim_sir(S, I, R, beta, gamma, n_days, logistic_L, logistic_k, logistic_x0):
-    N = S + I + R
-    s, i, r = [S], [I], [R]
+def sim_sir(S, E, I, R, alpha, beta, gamma, nu, n_days, logistic_L, logistic_k, logistic_x0):
+    N = S + E + I + R
+    s, e, i, r = [S], [E], [I], [R]
     for day in range(n_days):
-        y = S, I, R
+        y = S, E, I, R
         # evaluate logistic
         beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
-        S, I, R = sir(y, beta_t, gamma, N)
+        S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
+        e.append(E)
         i.append(I)
         r.append(R)
-    s, i, r = np.array(s), np.array(i), np.array(r)
-    return s, i, r
+    s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
+    return s, e, i, r
 
 def logistic(L, k, x0, x):
     return L/(1+np.exp(-k*(x-x0)))
@@ -64,13 +67,13 @@ def logistic(L, k, x0, x):
 # plt.plot(np.arange(0, 30), y)
 
 
-def qdraw(qvec, p_df = params):
+def qdraw(qvec, p_df):
     '''
     Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
     It returns a bunch of parameters for inputting into SIR
     It'll also return their probability under the prior
     '''
-    assert len(qvec) == params.shape[0]
+    assert len(qvec) == p_df.shape[0]
     outdicts = []
     for i in range(len(qvec)):
         if p_df.distribution.iloc[i] == 'constant':
@@ -106,6 +109,7 @@ def SIR_from_params(p_df):
     '''
     #
     n_hosp = int(p_df.val.loc[p_df.param == 'n_hosp'])
+    incubation_days = float(p_df.val.loc[p_df.param == 'incubation_days'])
     # n_infec = int(p_df.val.loc[p_df.param == 'n_infec'])
     doubling_time = float(p_df.val.loc[p_df.param == 'doubling_time'])
     soc_dist = float(p_df.val.loc[p_df.param == 'soc_dist'])
@@ -121,31 +125,50 @@ def SIR_from_params(p_df):
     logistic_k = float(p_df.val.loc[p_df.param == 'logistic_k'])
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
+    beta = float(p_df.val.loc[p_df.param == 'beta']) # get beta directly rather than via doubling time
+    nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
     #
+    alpha = 1 / incubation_days
     gamma = 1 / recovery_days  # , random_draw=random_draw)
     doubling_time = doubling_time
     intrinsic_growth_rate = 2 ** (1 / doubling_time) - 1
     total_infections = n_hosp / mkt_share / hosp_prop
     # detection_prob = n_infec / total_infections
-    beta = (intrinsic_growth_rate + gamma) / region_pop * (1 - soc_dist)
+    #beta = (intrinsic_growth_rate + alpha + gamma)
     n_days = 200
+
+    # Offset by the incubation period to start the sim
+    # that many days before the first hospitalization
+    # Estimate the number Exposed from the number hospitalized
+    # on the first day of non-zero covid hospitalizations. 
+    from scipy.stats import expon
+    # Since incubation_days is exponential in SEIR, we start
+    # the time `offset` days before the first hospitalization
+    # We determine offset by allowing enough time for the majority
+    # of the initial exposures to become infected.
+    offset = expon.ppf(0.99, 1 / incubation_days) # Enough time for 95% of exposed to become infected
+    offset = int(offset)
     #
-    s, i, r = sim_sir(S=region_pop - total_infections,
-                      I=total_infections,#n_infec / detection_prob,
-                      R=0,
+    s, e, i, r = sim_sir(S=region_pop - total_infections,
+                      E=total_infections,
+                      I=0.0,#n_infec / detection_prob,
+                      R=0.0,
+                      alpha=alpha,
                       beta=beta,
                       gamma=gamma,
-                      n_days=n_days,
+                      nu=nu,
+                      n_days=n_days + offset,
                       logistic_L = logistic_L,
                       logistic_k = logistic_k,
-                      logistic_x0 = logistic_x0)
+                      logistic_x0 = logistic_x0 + offset)
 
     hosp_raw = hosp_prop
     ICU_raw = hosp_raw * ICU_prop  # coef param
     vent_raw = ICU_raw * vent_prop  # coef param
     
-    ds = np.diff(s*-1)
+    ds = np.diff(i) + np.diff(r) # new infections is delta i plus delta r 
     ds = np.array([0]+list(ds))
+    ds = ds[offset:]
 
     hosp = ds * hosp_raw * mkt_share
     icu = ds * ICU_raw * mkt_share
@@ -181,7 +204,12 @@ def SIR_from_params(p_df):
     output = dict(days=np.asarray(proj.day),
                   arr=np.asarray(proj)[:, 1:],
                   names=proj.columns.tolist()[1:],
-                  parms = p_df)
+                  parms = p_df,
+                  s=s,
+                  e=e,
+                  i=i,
+                  r=r,
+                  offset=offset)
     return output
     
     

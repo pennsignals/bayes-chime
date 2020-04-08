@@ -29,7 +29,7 @@ vent_capacity = 183
 df = pd.read_pickle(f'{outdir}chains.pkl')
 
 # remove burnin
-df = df.loc[(df.iter>1000) & (~df.chain.isin([1, 12]))]
+df = df.loc[(df.iter>800)] #& (~df.chain.isin([1, 12]))]
 
 
 # plot of logistic curves
@@ -40,7 +40,7 @@ qlist = []
 for day in range(census_ts.shape[0]):
     ldist = logistic(df.logistic_L, 
                       df.logistic_k,
-                      df.logistic_x0,
+                      df.logistic_x0 - df.incubation_days.astype(int),
                       day)
     qlist.append(np.quantile(ldist, [.025, .5, .975]))
 
@@ -75,9 +75,9 @@ plt.xlabel(f'Posterior mean by chain')
 
 # predictive plot
 arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
-arrq = np.quantile(arrs, axis = 0, q = [.025, .25, .5, .75, .975])
+arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
 
-howfar = 40
+howfar = 200
 fig, ax = plt.subplots(figsize=(16, 8), ncols=2, nrows=1)
 # hosp
 ax[0].plot(arrq[2,:howfar,3], label = 'posterior median')
@@ -86,17 +86,19 @@ ax[0].set_xlabel(f'Days since March 14', fontsize=12, fontweight='bold')
 ax[0].fill_between(x = list(range(howfar)),
                    y1 = arrq[0,:howfar,3],
                    y2 = arrq[4,:howfar,3], 
-                   label = '95% Credible Region',
+                   label = '90% Credible Region',
                    alpha = .3,
                    lw = 2,
-                   edgecolor = "k")
+                   edgecolor = "k",
+                   alpha=0.5)
 ax[0].fill_between(x = list(range(howfar)),
                    y1 = arrq[1,:howfar,3],
                    y2 = arrq[3,:howfar,3], 
                    label = '50% Credible Region',
                    alpha = .3,
                    lw = 2,
-                   edgecolor = "k")
+                   edgecolor = "k",
+                   alpha=0.5)
 ax[0].plot(list(range(len(census_ts.hosp))), census_ts.hosp, 
            color = "red",
            label = "observed")
@@ -165,8 +167,8 @@ for var_i in range(params.shape[0]):
 # df = pd.DataFrame(outdicts)
 
 toplot = df[['doubling_time', 'hosp_prop',
-       'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'recovery_days', 'logistic_k', 'logistic_x0',
-       'logistic_L', 'days_until_overacpacity', 'peak_demand', 'posterior']]
+       'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'incubation_days' , 'recovery_days', 'logistic_k', 'logistic_x0',
+       'logistic_L', 'nu', 'days_until_overacpacity', 'peak_demand', 'posterior']]
 toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
 fig, ax = plt.subplots(figsize=(8, 80), ncols=1, nrows=toplot.shape[1])
@@ -191,7 +193,7 @@ for i in range(len(toplot.columns[:-3])):
         x = sps.beta.ppf(pspace, params.loc[params.param == cname, 'p1'], params.loc[params.param == cname, 'p2'])
         y = sps.beta.pdf(x, params.loc[params.param == cname, 'p1'], params.loc[params.param == cname, 'p2'])
     ax[i].plot(x, y, label = "prior")
-    ax[i].hist(toplot[cname], density = True, label = "posterior")
+    ax[i].hist(toplot[cname], density = True, label = "posterior", bins=30)
     ax[i].set_xlabel(params.loc[params.param == cname, 'description'].iloc[0])
     ax[i].legend()
 plt.tight_layout()
@@ -199,24 +201,24 @@ fig.savefig(f'{figdir}marginal_posteriors_v2.pdf')
 plt.tight_layout()
 
     
-        if p_df.distribution.iloc[i] == 'gamma':
-            p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
-        elif p_df.distribution.iloc[i] == 'beta':
-            p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
-        elif p_df.distribution.iloc[i] == 'uniform':
-            p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
+#         if p_df.distribution.iloc[i] == 'gamma':
+#             p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
+#         elif p_df.distribution.iloc[i] == 'beta':
+#             p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
+#         elif p_df.distribution.iloc[i] == 'uniform':
+#             p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
 
-plt.plot(sps.norm.ppf(pspace))
+# plt.plot(sps.norm.ppf(pspace))
 
 
-           if p_df.distribution.iloc[i] == 'gamma':
-                p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
-            elif p_df.distribution.iloc[i] == 'beta':
-                p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
-            elif p_df.distribution.iloc[i] == 'uniform':
-                p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
-            out = dict(param = p_df.param.iloc[i],
-                       val = getattr(sps, p_df.distribution.iloc[i]).ppf(*p))
+#            if p_df.distribution.iloc[i] == 'gamma':
+#                 p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
+#             elif p_df.distribution.iloc[i] == 'beta':
+#                 p = (qvec[i],p_df.p1.iloc[i], p_df.p2.iloc[i])
+#             elif p_df.distribution.iloc[i] == 'uniform':
+#                 p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i]+ p_df.p2.iloc[i])
+#             out = dict(param = p_df.param.iloc[i],
+#                        val = getattr(sps, p_df.distribution.iloc[i]).ppf(*p))
 
 # import seaborn as sns
 # grid = sns.PairGrid(data= toplot,

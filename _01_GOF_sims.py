@@ -7,6 +7,8 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from scipy import stats as sps
 
+import sys
+
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
@@ -15,7 +17,16 @@ outdir = f'{os.getcwd()}/output/'
 figdir = f'{os.getcwd()}/figures/'
 
 # import the census time series and set the zero day to be the first instance of zero
-census_ts = pd.read_csv(f"{datadir}census_ts.csv")
+for i, arg in enumerate(sys.argv):
+        print(f"Argument {i:>6}: {arg}")
+
+hospital = sys.argv[1]
+n_chains = int(sys.argv[2])
+n_iters = int(sys.argv[3])
+
+census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
+# import parameters
+params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
 
@@ -26,25 +37,27 @@ vent_capacity = 183
 
 def eval_pos(pos):
     '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
-    draw = SIR_from_params(qdraw(pos))
+    draw = SIR_from_params(qdraw(pos, params))
     # loss for vent
-    residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
-    if any(residuals_vent == 0):
-        residuals_vent[residuals_vent == 0] = .01
-    sigma2 = np.var(residuals_vent)
-    LLv = loglik(residuals_vent)#np.sum(-np.log((residuals_vent**2)/(2*sigma2)))
-    Lpriorv = np.log(draw['parms'].prob).sum()
-    posterior_vent = LLv + Lpriorv
+    LL = 0
+    residuals_vent = None
+    if census_ts.vent.sum() > 0:
+        residuals_vent = draw['arr'][:nobs,5] - census_ts.vent # 5 corresponds with vent census
+        if any(residuals_vent == 0):
+            residuals_vent[residuals_vent == 0] = .01
+        sigma2 = np.var(residuals_vent)
+        LL += loglik(residuals_vent)
+
     # loss for hosp
     residuals_hosp = draw['arr'][:nobs,3] - census_ts.hosp # 5 corresponds with vent census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = .01
     sigma2 = np.var(residuals_hosp)
-    LLh = loglik(residuals_hosp)#np.sum(-np.log((residuals_hosp**2)/(2*sigma2)))    
-    Lpriorh = np.log(draw['parms'].prob).sum()
-    posterior_hosp = LLh + Lpriorh
-    # average them
-    posterior = np.mean([posterior_hosp, posterior_vent])    
+    LL += loglik(residuals_hosp)
+
+    Lprior = np.log(draw['parms'].prob).sum()
+    posterior = LL + Lprior
+
     out = dict(pos = pos,
                draw = draw,
                posterior = posterior,
@@ -58,22 +71,21 @@ def loglik(r):
 
 # specifying the standard deviation of the nump, in gaussian quantile space per the jumper function
 jump_sd = .1
-seed  =5
+seed = 5
 
 def chain(seed):
     np.random.seed(seed)
     current_pos = eval_pos(np.random.uniform(size = params.shape[0]))
     outdicts = []
-    for ii in range(5000):
+    U = np.random.uniform(0, 1, n_iters)
+    for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(jumper(current_pos['pos'], .1))
-    
             p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
-            alpha = np.random.uniform(0,1)
-            
-            if alpha < p_accept:
+
+            if U[ii] < p_accept:
                 current_pos = proposed_pos
-        
+
         except Exception as e:
             print(e)
         # append the relevant results
@@ -88,16 +100,19 @@ def chain(seed):
         out.update({'posterior':proposed_pos['posterior']})
         out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
         out.update({'residuals_vent':proposed_pos['residuals_vent']})
+        out.update({'offset': current_pos['draw']['offset']})
         outdicts.append(out)
+        if (ii % 1000) == 0:
+            print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
 
 
 pool = mp.Pool(mp.cpu_count())
-chains = pool.map(chain, list(range(16)))
+chains = pool.map(chain, list(range(n_chains)))
 pool.close()
 
 df = pd.concat(chains)
-df.to_pickle(f'{outdir}chains.pkl')
+df.to_pickle(f'{outdir}{hospital}_chains.pkl')
 
 # # remove burnin
 # df = df.loc[df.iter>1000]
