@@ -74,10 +74,6 @@ fig.savefig(f"{figdir}{hospital}_effective_soc_dist.pdf")
 
 # plot of chains
 def plt_predictive(howfar=200):
-    plt.scatter(x = df.groupby(['chain']).mean()[['posterior']], y = df.groupby(['chain']).mean()[['doubling_time']])
-    plt.ylabel(f'Doubling time mean by chain')
-    plt.xlabel(f'Posterior mean by chain')
-
     # predictive plot
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
     arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
