@@ -164,6 +164,8 @@ if penalty_factor<0:
     
     penalty = np.linspace(.05, .95, 10)
     mean_test_loss = [np.mean(i[1000:]) for i in master_chain]
+    
+    fig = plt.figure()
     plt.plot(penalty, mean_test_loss)
     plt.fill_between(x = penalty,
                      y1 = [float(np.quantile(i[1000:], [.025])) for i in master_chain],
@@ -173,6 +175,7 @@ if penalty_factor<0:
                      edgecolor='k')
     plt.xlabel('penalty factor')
     plt.ylabel('test MSE')
+    fig.savefig(f"{figdir}{hospital}_shrinkage_grid_GOF.pdf")
     
     # identify the best penalty
     best_penalty = penalty[np.argmin(mean_test_loss)]
