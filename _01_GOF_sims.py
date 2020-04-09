@@ -179,7 +179,7 @@ if penalty_factor<0:
     
     # identify the best penalty
     best_penalty = penalty[np.argmin(mean_test_loss)]
-else if penalty_factor < 1:
+elif penalty_factor < 1:
     best_penalty = penalty_factor
     
 tuples_for_starmap = [(i, best_penalty, 0) for i in range(n_chains)]
