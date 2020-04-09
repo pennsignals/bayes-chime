@@ -15,5 +15,5 @@ for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py $loc 8 5000; 
 Results will be saved to `output/<prefix>_chains.pkl`, which can be analysed/plotted using:
 
 ```bash
-for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _02_munge_chains2.py $loc; done
+for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _02_munge_chains.py $loc; done
 ```
