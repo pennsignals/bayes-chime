@@ -211,9 +211,9 @@ def mk_projection_tables():
 mk_projection_tables()
 
 
-toplot = df[['doubling_time','beta', 'hosp_prop',
+toplot = df[['beta', 'hosp_prop',
        'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'incubation_days' , 'recovery_days', 'logistic_k', 'logistic_x0',
-       'logistic_L', 'nu', 'days_until_overacpacity', 'peak_demand', 'posterior']]
+       'logistic_L', 'days_until_overacpacity', 'peak_demand', 'posterior']]
 toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
 pspace = np.linspace(.001, .999, 1000)
