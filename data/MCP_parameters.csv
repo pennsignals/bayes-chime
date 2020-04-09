@@ -6,7 +6,7 @@
 5,5,5,5,hosp_prop,0.025,gamma,6.326832789,0.004168888,Prportion of infections requiring hospitalization
 6,6,6,6,ICU_prop,0.45,beta,6.016240653,6.016240653,Proportion of hospitalizations admitted to ICU
 7,7,7,7,vent_prop,0.66,beta,5.224029085,3.078885266,Proportion of ICU patients requiring ventilation
-8,8,8,8,hosp_LOS,12,gamma,136.2148007,0.087488137,Hospital Length of Stay
+8,8,8,8,hosp_LOS,12,gamma,406.72678836594764,0.023635241523393788,Hospital Length of Stay
 9,9,9,9,ICU_LOS,9,gamma,32.47013734,0.269338749,ICU Length of Stay
 10,10,10,10,vent_LOS,1.111111111,gamma,32.47013615,0.033667345,coef on ICU LOS
 11,11,11,11,mkt_share,0.37,constant,NA,NA,Hospital Market Share (%)
