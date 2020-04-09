@@ -25,7 +25,7 @@ for i, arg in enumerate(sys.argv):
 hospital = sys.argv[1]
 n_chains = int(sys.argv[2])
 n_iters = int(sys.argv[3])
-penalty_factor = int(sys.argv[4])
+penalty_factor = float(sys.argv[4])
 
 census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
 # import parameters
@@ -150,12 +150,12 @@ def loop_over_shrinkage(seed, holdout=7, shrvec = np.linspace(.05, .95, 10)):
         test_loss.append(chain_out['test_loss'])
     return test_loss
 
-pool = mp.Pool(mp.cpu_count())
-shrinkage_chains = pool.map(loop_over_shrinkage, list(range(n_chains)))
-pool.close()
 
 
 if penalty_factor<0:
+    pool = mp.Pool(mp.cpu_count())
+    shrinkage_chains = pool.map(loop_over_shrinkage, list(range(n_chains)))
+    pool.close()
     # put together the mp results
     master_chain = shrinkage_chains[0]
     for i in range(1, len(shrinkage_chains)):
