@@ -206,9 +206,9 @@ if penalty_factor<0:
     # put together the mp results
     chain_dict = {i:[] for i in pen_vec}
     for i in range(len(tuples_for_starmap)):
-        chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i].tolist()# get the penalty value
+        chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][1000:].tolist()# get the penalty value
         
-    mean_test_loss = [np.mean(chain_dict[i][1000:]) for i in pen_vec]
+    mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
     
     fig = plt.figure()
     plt.plot(pen_vec, mean_test_loss)
