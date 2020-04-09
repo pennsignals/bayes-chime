@@ -1,3 +1,9 @@
+
+# BayesCHIME
+
+Many factors surrounding the transmission, severity of infections, and remaining susceptibility of local populations to COVID-19 remain highly uncertain. However, as new data on hospitalized cases becomes available, we wish to incorporate this data in order to update and refine our projections of future demand to better inform capacity planners. To that end we have extended CHIME to increase the epidemiological process realism and to coherently incorporate new data as it becomes available. This extension allows us to transition from a small number of scenarios to assess best and worst case projections based on parameter assumptions, to a probabilistic forecast representing a continuous distribution of likely scenarios.
+
+
 # Usage
 
 First run the sims by passing the name of the location (matching the prefix of the `data/<prefix>_parameters.csv` and `data/<prefix>_ts.csv` files).
@@ -24,3 +30,4 @@ Results will be saved to `output/<prefix>_chains.pkl`, which can be analysed/plo
 ```bash
 for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _02_munge_chains.py $loc; done
 ```
+
