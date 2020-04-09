@@ -135,10 +135,10 @@ def eval_pos(pos, shrinkage = None, holdout = 0, sample_obs = True):
 
 
 # specifying the standard deviation of the jump, in gaussian quantile space per the jumper function
-jump_sd = .1
+jump_sd = .05
 seed = 5
 
-def chain(seed, shrinkage = None, holdout = 0, sample_obs = True):
+def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= .05)
@@ -227,7 +227,7 @@ if penalty_factor<0:
 elif penalty_factor < 1:
     best_penalty = penalty_factor
     
-tuples_for_starmap = [(i, best_penalty, 0, True) for i in range(n_chains)]
+tuples_for_starmap = [(i, best_penalty, 0, False) for i in range(n_chains)]
 
 # get the final answer based on the best penalty
 pool = mp.Pool(mp.cpu_count())
