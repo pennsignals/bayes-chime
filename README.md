@@ -3,7 +3,7 @@
 First run the sims by passing the name of the location (matching the prefix of the `data/<prefix>_parameters.csv` and `data/<prefix>_ts.csv` files).
 
 ```bash
-python _01_GOF_sims.py <prefix> <n_chains> <n_iters><penalty_factor>
+python _01_GOF_sims.py <prefix> <n_chains> <n_iters> <penalty_factor>
 ```
 
 To run for each of a list of locations, use:
