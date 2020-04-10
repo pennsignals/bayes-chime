@@ -163,16 +163,10 @@ def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
             print(e)
         # append the relevant results
         out = {current_pos['draw']['parms'].param[i]:current_pos['draw']['parms'].val[i] for i in range(params.shape[0])}
-        out.update({"days_until_overacpacity": int(np.apply_along_axis(lambda x: np.where((x - vent_capacity) > 0)[0][0] \
-                                                                if max(x) > vent_capacity else -9999, axis=0,
-                                                                arr=current_pos['draw']['arr'][:,5]))})
-        out.update({"peak_demand":np.max(current_pos['draw']['arr'][:,5])})
         out.update({"arr": current_pos['draw']['arr']})
         out.update({"iter":ii})
         out.update({"chain":seed})
         out.update({'posterior':proposed_pos['posterior']})
-        out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
-        out.update({'residuals_vent':proposed_pos['residuals_vent']})
         out.update({'offset': current_pos['draw']['offset']})
         if holdout > 0:
             out.update({'test_loss': current_pos['test_loss']})
