@@ -2,7 +2,7 @@
 
 
 import pandas as pd
-import os
+from os import getcwd, path
 from _99_shared_functions import *
 import multiprocessing as mp
 import matplotlib.pyplot as plt
@@ -12,18 +12,18 @@ import sys
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-datadir = f'{os.getcwd()}/data/'
-outdir = f'{os.getcwd()}/output/'
-figdir = f'{os.getcwd()}/figures/'
+datadir = path.join(f'{getcwd()}', 'data')
+outdir = path.join(f'{getcwd()}', 'output')
+figdir = path.join(f'{getcwd()}', 'figures')
 
 # import the census time series and set the zero day to be the first instance of zero
 for i, arg in enumerate(sys.argv):
         print(f"Argument {i:>6}: {arg}")
 
 hospital = sys.argv[1]
-census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
+census_ts = pd.read_csv(path.join(f"{datadir}",f"{hospital}_ts.csv"))
 first_day = census_ts['date'].values[0]
-params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
+params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
 
@@ -33,7 +33,7 @@ nobs = census_ts.shape[0]
 vent_capacity = float(params.base.loc[params.param == 'vent_capacity'])
 hosp_capacity = float(params.base.loc[params.param == 'hosp_capacity'])
 
-df = pd.read_pickle(f'{outdir}{hospital}_chains.pkl')
+df = pd.read_pickle(path.join(f'{outdir}',f'{hospital}_chains.pkl'))
 
 # remove burnin
 df = df.loc[(df.iter>1000)] #& (~df.chain.isin([1, 12]))]
@@ -67,7 +67,7 @@ plt.fill_between(x = list(range(census_ts.shape[0]))
 plt.ylabel(f'Relative (effective) social contact')
 plt.xlabel(f'Days since {first_day}')
 plt.ylim(0,1)
-fig.savefig(f"{figdir}{hospital}_effective_soc_dist.pdf")
+fig.savefig(path.join(f"{figdir}",f"{hospital}_effective_soc_dist.pdf"))
 
 
 
@@ -175,7 +175,7 @@ def plt_predictive(howfar=200):
     axx.grid(True)
     fig.autofmt_xdate()
     fig.tight_layout()
-    fig.savefig(f"{figdir}{hospital}_forecast_{howfar}_day.pdf")
+    fig.savefig(path.join(f"{figdir}",f"{hospital}_forecast_{howfar}_day.pdf"))
 
 plt_predictive(40)
 plt_predictive(100)
@@ -208,20 +208,29 @@ def mk_projection_tables():
       summary_df_vent,
       summary_df_hsp_admits,
       summary_df_vent_admits], 1)
-    summary_df.to_csv(f"{outdir}{hospital}_forecast.csv", index=False)
+    summary_df.to_csv(path.join(f"{outdir}",f"{hospital}_forecast.csv"), index=False)
 
 mk_projection_tables()
 
 
-toplot = df[['beta', 'hosp_prop',
-       'ICU_prop', 'vent_prop', 'hosp_LOS', 'ICU_LOS', 'vent_LOS', 'incubation_days' , 'recovery_days', 'logistic_k', 'logistic_x0',
-       'logistic_L', 'days_until_overacpacity', 'peak_demand', 'posterior']]
+toplot = df[['beta',
+             'hosp_prop',
+             'ICU_prop',
+             'vent_prop',
+             'hosp_LOS',
+             'ICU_LOS',
+             'vent_LOS',
+             'incubation_days',
+             'recovery_days',
+             'logistic_k',
+             'logistic_x0',
+             'logistic_L']]
 toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
 pspace = np.linspace(.001, .999, 1000)
 
 fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns[:-3]))
-for i in range(len(toplot.columns[:-3])):
+for i in range(len(toplot.columns)):
     cname = toplot.columns[i]
     if params.loc[params.param == cname, 'distribution'].iloc[0] == 'gamma':    
         x = sps.gamma.ppf(pspace, params.loc[params.param == cname, 'p1'], 0, params.loc[params.param == cname, 'p2'])
@@ -234,4 +243,4 @@ for i in range(len(toplot.columns[:-3])):
     ax[i].set_xlabel(params.loc[params.param == cname, 'description'].iloc[0])
     ax[i].legend()
 plt.tight_layout()
-fig.savefig(f'{figdir}{hospital}_marginal_posteriors_v2.pdf')
+fig.savefig(path.join(f'{figdir}',f'{hospital}_marginal_posteriors_v2.pdf'))

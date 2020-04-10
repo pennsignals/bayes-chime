@@ -1,5 +1,5 @@
 import pandas as pd
-import os
+from os import getcwd, path
 from _99_shared_functions import *
 import multiprocessing as mp
 import matplotlib.pyplot as plt
@@ -11,9 +11,9 @@ import copy
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
-datadir = f'{os.getcwd()}/data/'
-outdir = f'{os.getcwd()}/output/'
-figdir = f'{os.getcwd()}/figures/'
+datadir = path.join(f'{getcwd()}', 'data')
+outdir = path.join(f'{getcwd()}', 'output')
+figdir = path.join(f'{getcwd()}', 'figures')
 
 sample_obs = False
 # specifying the standard deviation of the jump, in gaussian quantile space per the jumper function
@@ -32,9 +32,9 @@ if len(sys.argv) > 5:
     sample_obs = bool(int(sys.argv[5]))
 
 # import the census time series and set the zero day to be the first instance of zero
-census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
+census_ts = pd.read_csv(path.join(f"{datadir}",f"{hospital}_ts.csv"))
 # import parameters
-params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
+params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = (census_ts.hosp.loc[census_ts.vent.isna()] *
                                                 np.mean(census_ts.vent/census_ts.hosp))
@@ -67,7 +67,7 @@ if sample_obs:
                      ,lw=2
                      ,edgecolor='k')
     plt.title("week-long rolling variance")
-    fig.savefig(f"{figdir}{hospital}_observation_variance.pdf")
+    fig.savefig(path.join(f"{figdir}",f"{hospital}_observation_variance.pdf"))
 
 
 def loglik(r):
@@ -210,7 +210,7 @@ if penalty_factor<0:
                      edgecolor='k')
     plt.xlabel('penalty factor')
     plt.ylabel('test MSE')
-    fig.savefig(f"{figdir}{hospital}_shrinkage_grid_GOF.pdf")
+    fig.savefig(path.join(f"{figdir}",f"{hospital}_shrinkage_grid_GOF.pdf"))
 
     # identify the best penalty
     best_penalty = pen_vec[np.argmin(mean_test_loss)]
@@ -225,4 +225,4 @@ chains = pool.starmap(chain, tuples_for_starmap)
 pool.close()
 
 df = pd.concat(chains)
-df.to_pickle(f'{outdir}{hospital}_chains.pkl')
+df.to_pickle(path.join(f'{outdir}',f'{hospital}_chains.pkl'))
