@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import os
 from _99_shared_functions import *
@@ -17,8 +15,12 @@ datadir = f'{os.getcwd()}/data/'
 outdir = f'{os.getcwd()}/output/'
 figdir = f'{os.getcwd()}/figures/'
 
+sample_obs = False
+# specifying the standard deviation of the jump, in gaussian quantile space per the jumper function
+jump_sd = .05
+seed = 5
 
-# import the census time series and set the zero day to be the first instance of zero
+
 for i, arg in enumerate(sys.argv):
         print(f"Argument {i:>6}: {arg}")
 
@@ -26,17 +28,16 @@ hospital = sys.argv[1]
 n_chains = int(sys.argv[2])
 n_iters = int(sys.argv[3])
 penalty_factor = float(sys.argv[4])
+if len(sys.argv) > 5:
+    sample_obs = bool(int(sys.argv[5]))
 
-# hospital = "Downtown"
-# n_chains = 16
-# n_iters = 2000
-# penalty_factor = -99
-
+# import the census time series and set the zero day to be the first instance of zero
 census_ts = pd.read_csv(f"{datadir}{hospital}_ts.csv")
 # import parameters
 params = pd.read_csv(f"{datadir}{hospital}_parameters.csv")
 # impute vent with the proportion of hosp.  this is a crude hack
-census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
+census_ts.loc[census_ts.vent.isna(), 'vent'] = (census_ts.hosp.loc[census_ts.vent.isna()] *
+                                                np.mean(census_ts.vent/census_ts.hosp))
 
 
 nobs = census_ts.shape[0]
@@ -55,17 +56,18 @@ for i in range(nobs):
     rwstd.append(np.std(y))
 census_ts['vent_rwstd'] = rwstd
     
-plt.plot(census_ts.vent, color = "red")
-plt.fill_between(x = list(range(nobs)),
-                 y1 = census_ts.vent + 2*census_ts.vent_rwstd,
-                 y2 = census_ts.vent - 2*census_ts.vent_rwstd 
-                 ,alpha=.3
-                 ,lw=2
-                 ,edgecolor='k')
-plt.title("week-long rolling variance")
 
-# define vent capacity
-vent_capacity = 183
+if sample_obs:
+    fig = plt.figure()
+    plt.plot(census_ts.vent, color = "red")
+    plt.fill_between(x = list(range(nobs)),
+                     y1 = census_ts.vent + 2*census_ts.vent_rwstd,
+                     y2 = census_ts.vent - 2*census_ts.vent_rwstd
+                     ,alpha=.3
+                     ,lw=2
+                     ,edgecolor='k')
+    plt.title("week-long rolling variance")
+    fig.savefig(f"{figdir}{hospital}_observation_variance.pdf")
 
 
 def loglik(r):
@@ -95,7 +97,7 @@ def eval_pos(pos, shrinkage = None, holdout = 0, sample_obs = True):
     else:
         train = obs
 
-    
+
     # loss for vent
     LL = 0
     residuals_vent = None
@@ -134,10 +136,6 @@ def eval_pos(pos, shrinkage = None, holdout = 0, sample_obs = True):
     return(out)
 
 
-# specifying the standard deviation of the jump, in gaussian quantile space per the jumper function
-jump_sd = .05
-seed = 5
-
 def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
     np.random.seed(seed)
     if shrinkage is not None:
@@ -163,26 +161,18 @@ def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
             print(e)
         # append the relevant results
         out = {current_pos['draw']['parms'].param[i]:current_pos['draw']['parms'].val[i] for i in range(params.shape[0])}
-        out.update({"days_until_overacpacity": int(np.apply_along_axis(lambda x: np.where((x - vent_capacity) > 0)[0][0] \
-                                                                if max(x) > vent_capacity else -9999, axis=0,
-                                                                arr=current_pos['draw']['arr'][:,5]))})
-        out.update({"peak_demand":np.max(current_pos['draw']['arr'][:,5])})
         out.update({"arr": current_pos['draw']['arr']})
         out.update({"iter":ii})
         out.update({"chain":seed})
         out.update({'posterior':proposed_pos['posterior']})
-        out.update({'residuals_hosp':proposed_pos['residuals_hosp']})
-        out.update({'residuals_vent':proposed_pos['residuals_vent']})
         out.update({'offset': current_pos['draw']['offset']})
         if holdout > 0:
             out.update({'test_loss': current_pos['test_loss']})
         outdicts.append(out)
-        if shrinkage is None:        
+        if shrinkage is None:
             if (ii % 1000) == 0:
                 print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
-
-
 
 
 def loop_over_shrinkage(seed, holdout=7, shrvec = np.linspace(.05, .95, 10)):
@@ -202,14 +192,14 @@ if penalty_factor<0:
     tuples_for_starmap = [(i, 7, j) for i in range(n_chains) for j in pen_vec]
     pool = mp.Pool(mp.cpu_count())
     shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
-    pool.close()    
+    pool.close()
     # put together the mp results
     chain_dict = {i:[] for i in pen_vec}
     for i in range(len(tuples_for_starmap)):
         chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][1000:].tolist()# get the penalty value
-        
+
     mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
-    
+
     fig = plt.figure()
     plt.plot(pen_vec, mean_test_loss)
     plt.fill_between(x = pen_vec,
@@ -221,13 +211,13 @@ if penalty_factor<0:
     plt.xlabel('penalty factor')
     plt.ylabel('test MSE')
     fig.savefig(f"{figdir}{hospital}_shrinkage_grid_GOF.pdf")
-    
+
     # identify the best penalty
     best_penalty = pen_vec[np.argmin(mean_test_loss)]
 elif penalty_factor < 1:
     best_penalty = penalty_factor
-    
-tuples_for_starmap = [(i, best_penalty, 0, False) for i in range(n_chains)]
+
+tuples_for_starmap = [(i, best_penalty, 0, sample_obs) for i in range(n_chains)]
 
 # get the final answer based on the best penalty
 pool = mp.Pool(mp.cpu_count())
@@ -236,39 +226,3 @@ pool.close()
 
 df = pd.concat(chains)
 df.to_pickle(f'{outdir}{hospital}_chains.pkl')
-
-
-# # remove burnin
-# df = df.loc[df.iter>1000]
-
-# # plot of logistic curves
-# def logistic(L, k, x0, x):
-#     return L/(1+np.exp(-k*(x-x0)))
-
-# qlist = []
-# for day in range(census_ts.shape[0]):
-#     ldist = logistic(df.logistic_L, 
-#                      df.logistic_k,
-#                      df.logistic_x0,
-#                      day)
-#     qlist.append(np.quantile(ldist, [.025, .5, .975]))
-
-# qmat = np.vstack(qlist)
-
-# plt.plot(1-qmat[:,1])
-# plt.plot(1-qmat[:,0])
-# plt.plot(1-qmat[:,2])
-
-# plt.plot(b)
-
-# df = pd.DataFrame(outdicts)
-
-# fig, ax = plt.subplots(figsize=(16, 40), ncols=1, nrows=17)
-# for i in range(17):
-#     ax[i].plot(df.iloc[:,i])
-#     ax[i].set_title(df.columns[i], fontsize=12, fontweight='bold')
-# plt.tight_layout()
-# fig.savefig(f'{figdir}foo.pdf')
-# plt.tight_layout()
-
-
