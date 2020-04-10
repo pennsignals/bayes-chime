@@ -225,11 +225,11 @@ toplot = df[['beta',
              'logistic_k',
              'logistic_x0',
              'logistic_L']]
-toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
+#toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
 pspace = np.linspace(.001, .999, 1000)
 
-fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns[:-3]))
+fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns))
 for i in range(len(toplot.columns)):
     cname = toplot.columns[i]
     if params.loc[params.param == cname, 'distribution'].iloc[0] == 'gamma':    
