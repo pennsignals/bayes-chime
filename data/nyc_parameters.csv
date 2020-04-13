@@ -1,4 +1,4 @@
-op,X.2,X.1,X,param,base,distribution,p1,p2,description
+,X.2,X.1,X,param,base,distribution,p1,p2,description
 1,1,1,1,n_hosp,1,constant,NA,NA,Currently hospitalized COVID-19 patients
 2,2,2,2,n_infec,514,constant,NA,NA,Currently known regional infections
 3,3,3,3,doubling_time,2.75,gamma,11.08259337,0.270306219,Doubling time before social distancing
@@ -9,8 +9,8 @@ op,X.2,X.1,X,param,base,distribution,p1,p2,description
 8,8,8,8,hosp_LOS,12,gamma,406.7267884,0.023635242,Hospital Length of Stay
 9,9,9,9,ICU_LOS,9,gamma,32.47013734,0.269338749,ICU Length of Stay
 10,10,10,10,vent_LOS,1.111111111,gamma,32.47013615,0.033667345,coef on ICU LOS
-11,11,11,11,mkt_share,0.26,constant,NA,NA,Hospital Market Share (%)
-12,12,12,12,region_pop,1200000,constant,NA,NA,Regional Population
+11,11,11,11,mkt_share,1,constant,NA,NA,Hospital Market Share (%)
+12,12,12,12,region_pop,8399000,constant,NA,NA,Regional Population
 13,13,13,13,incubation_days,5,gamma,9.514379271,0.513980244,Days from exposure to infectiousness
 14,14,14,14,recovery_days,14,gamma,9.833457434,1.642265575,Days from infection to recovery
 15,15,15,15,logistic_k,1,gamma,4.018953794,0.22738215,logistic growth rate
