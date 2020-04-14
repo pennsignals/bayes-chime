@@ -9,14 +9,14 @@
 8,8,8,8,hosp_LOS,12,gamma,406.7267884,0.023635242,Hospital Length of Stay
 9,9,9,9,ICU_LOS,9,gamma,32.47013734,0.269338749,ICU Length of Stay
 10,10,10,10,vent_LOS,1.111111111,gamma,32.47013615,0.033667345,coef on ICU LOS
-11,11,11,11,mkt_share,11.08,constant,NA,NA,Hospital Market Share (%)
+11,11,11,11,mkt_share,0.1108,constant,NA,NA,Hospital Market Share (%)
 12,12,12,12,region_pop,1200000,constant,NA,NA,Regional Population
 13,13,13,13,incubation_days,5,gamma,9.514379271,0.513980244,Days from exposure to infectiousness
 14,14,14,14,recovery_days,14,gamma,9.833457434,1.642265575,Days from infection to recovery
 15,15,15,15,logistic_k,1,gamma,4.018953794,0.22738215,logistic growth rate
 16,16,16,16,logistic_x0,14,gamma,6.407435434,2.859728136,logistic days from beginning of time series to middle of logistic
-17,17,17,17,logistic_L,0.5,beta,20.94604732,39.40072537,logistic depth of social distancing
-18,17,17,17,nu,0,constant,0.831874664,0.902383776,Networked contact structure power-law exponent
+17,17,17,17,logistic_L,0.5,beta,2,3,logistic depth of social distancing
+18,17,17,17,nu,2.5,gamma,93.9552169,0.02634306,Networked contact structure power-law exponent
 18,17,17,17,beta,0.25,beta,5,10,SEIR beta parameter (force of infection)
 18,17,17,17,hosp_capacity,,constant,,,Hospital Bed Capacity
 18,17,17,17,vent_capacity,,constant,,,Ventilator Capacity
