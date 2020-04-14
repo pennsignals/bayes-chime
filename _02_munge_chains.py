@@ -12,11 +12,13 @@ import sys
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
+# Get parameters from files stored during step 1, don't get from args (one argument, directory)
 datadir = path.join(f'{getcwd()}', 'data')
 outdir = path.join(f'{getcwd()}', 'output')
 figdir = path.join(f'{getcwd()}', 'figures')
 
 # import the census time series and set the zero day to be the first instance of zero
+# Ditto step 1 - get from args etc...
 for i, arg in enumerate(sys.argv):
         print(f"Argument {i:>6}: {arg}")
 
@@ -27,15 +29,18 @@ params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
 # impute vent with the proportion of hosp.  this is a crude hack
 census_ts.loc[census_ts.vent.isna(), 'vent'] = census_ts.hosp.loc[census_ts.vent.isna()]*np.mean(census_ts.vent/census_ts.hosp)
 
+# This needs to be configuable based on the time period specificed 
 nobs = census_ts.shape[0]
 
 # define capacity
 vent_capacity = float(params.base.loc[params.param == 'vent_capacity'])
 hosp_capacity = float(params.base.loc[params.param == 'hosp_capacity'])
 
+# Chains
 df = pd.read_pickle(path.join(f'{outdir}',f'{hospital}_chains.pkl'))
 
-# remove burnin
+# remove burn-in
+# Make 1000 configurable
 df = df.loc[(df.iter>1000)] #& (~df.chain.isin([1, 12]))]
 
 
