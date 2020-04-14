@@ -36,6 +36,7 @@ if len(sys.argv) > 5:
     sample_obs = bool(int(sys.argv[5]))
 
 # import the census time series and set the zero day to be the first instance of zero
+# TODO: Write these files so they can be used by step 2. Also good for the record.
 census_ts = pd.read_csv(path.join(f"{datadir}",f"{hospital}_ts.csv"))
 # import parameters
 params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
