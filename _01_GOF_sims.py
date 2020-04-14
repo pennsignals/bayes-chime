@@ -37,6 +37,7 @@ if len(sys.argv) > 5:
 
 # import the census time series and set the zero day to be the first instance of zero
 # TODO: Write these files so they can be used by step 2. Also good for the record.
+# TODO: Need full filenames here so we can setup multiple parameter spaces for the same set of hospitals, etc...
 census_ts = pd.read_csv(path.join(f"{datadir}",f"{hospital}_ts.csv"))
 # import parameters
 params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
@@ -44,7 +45,8 @@ params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
 census_ts.loc[census_ts.vent.isna(), 'vent'] = (census_ts.hosp.loc[census_ts.vent.isna()] *
                                                 np.mean(census_ts.vent/census_ts.hosp))
 
-
+# This needs to use a as_of_days_ago as an input parameter to censor this df. (default to 0)
+# nobs = census_ts.shape[0] - as_of_days_ago
 nobs = census_ts.shape[0]
 
 # rolling window variance
