@@ -11,7 +11,11 @@ import copy
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
 
+# TODO: Make these (optional) input parameters
+# Idea: make these a single directory with the same structure in each
+# Allow users to name runs?
 datadir = path.join(f'{getcwd()}', 'data')
+# Output needs to include all the input parameters, arguments & git hash (along timestamps for start and stop of runs)
 outdir = path.join(f'{getcwd()}', 'output')
 figdir = path.join(f'{getcwd()}', 'figures')
 
@@ -20,10 +24,10 @@ sample_obs = False
 jump_sd = .05
 seed = 5
 
-
 for i, arg in enumerate(sys.argv):
         print(f"Argument {i:>6}: {arg}")
 
+# argparse all the things
 hospital = sys.argv[1]
 n_chains = int(sys.argv[2])
 n_iters = int(sys.argv[3])
@@ -170,6 +174,7 @@ def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
             out.update({'test_loss': current_pos['test_loss']})
         outdicts.append(out)
         if shrinkage is None:
+            # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
             if (ii % 1000) == 0:
                 print('chain', seed, 'iter', ii)
     return pd.DataFrame(outdicts)
