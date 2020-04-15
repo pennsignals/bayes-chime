@@ -168,7 +168,6 @@ def main():
     figdir = path.join(dir, 'figures')
 
     census_ts, params, args = read_inputs(paramdir)
-    print(args)
     first_day = census_ts['date'].values[0]
 
     # TODO: This needs to be configurable based on the time period specificed

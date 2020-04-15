@@ -353,6 +353,7 @@ def main():
 
     df = pd.concat(chains, ignore_index=True)
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient='records', lines=True)
+    print(f"Output directory: {dir}")
 
 if __name__ == '__main__':
     main()
