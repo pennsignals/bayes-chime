@@ -1,128 +1,228 @@
-import pandas as pd
-from os import getcwd, path
-from _99_shared_functions import *
+from copy import deepcopy
+from datetime import datetime
+from os import getcwd, path, mkdir
+from string import ascii_letters, digits
+import json
 import multiprocessing as mp
-import matplotlib.pyplot as plt
+
+from configargparse import ArgParser
+from git import Repo
 from scipy import stats as sps
-from utils import *
-import sys
-import copy
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
-pd.options.display.max_rows = 4000
-pd.options.display.max_columns = 4000
+from _99_shared_functions import SIR_from_params, qdraw, jumper
+from utils import beta_from_q
 
-# TODO: Make these (optional) input parameters
-# Idea: make these a single directory with the same structure in each
-# Allow users to name runs?
-datadir = path.join(f'{getcwd()}', 'data')
-# Output needs to include all the input parameters, arguments & git hash (along timestamps for start and stop of runs)
-outdir = path.join(f'{getcwd()}', 'output')
-figdir = path.join(f'{getcwd()}', 'figures')
+LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
 
-sample_obs = False
-# specifying the standard deviation of the jump, in gaussian quantile space per the jumper function
-jump_sd = .05
-seed = 5
+p = ArgParser()
+p.add("-c", "--my-config", is_config_file=True, help="config file path")
+p.add("-P", "--prefix", help="prefix for old-style inputs")
+p.add("-p", "--parameters", help="the path to the parameters csv")
+p.add("-t", "--ts", help="the path to the time-series csv")
+p.add("-C", "--n_chains", help="number of chains to run", default=8, type=int)
+p.add(
+    "-i",
+    "--n_iters",
+    help="number of iterations to run per chain",
+    default=5000,
+    type=int,
+)
+p.add(
+    "-f",
+    "--fit_penalty",
+    action="store_true",
+    help="fit the penalty based on the last week of data",
+)
+p.add(
+    "--penalty",
+    help="penalty factor used for shrinkage (0.05 - 1)",
+    default=0.05,
+    type=float,
+)
+p.add(
+    "-s",
+    "--sample_obs",
+    action="store_true",
+    help="adds noise to the values in the time-series",
+)
+p.add("-o", "--out", help="output directory")
+p.add(
+    "-a",
+    "--as_of",
+    default=0,
+    help="number of days in the past to project from",
+    type=int,
+)
 
-for i, arg in enumerate(sys.argv):
-        print(f"Argument {i:>6}: {arg}")
+OPTIONS = p.parse_args()
 
-# argparse all the things
-hospital = sys.argv[1]
-n_chains = int(sys.argv[2])
-n_iters = int(sys.argv[3])
-penalty_factor = float(sys.argv[4])
-if len(sys.argv) > 5:
-    sample_obs = bool(int(sys.argv[5]))
 
-# import the census time series and set the zero day to be the first instance of zero
-# TODO: Write these files so they can be used by step 2. Also good for the record.
-# TODO: Need full filenames here so we can setup multiple parameter spaces for the same set of hospitals, etc...
-census_ts = pd.read_csv(path.join(f"{datadir}",f"{hospital}_ts.csv"))
-# import parameters
-params = pd.read_csv(path.join(f"{datadir}",f"{hospital}_parameters.csv"))
-# impute vent with the proportion of hosp.  this is a crude hack
-census_ts.loc[census_ts.vent.isna(), 'vent'] = (census_ts.hosp.loc[census_ts.vent.isna()] *
-                                                np.mean(census_ts.vent/census_ts.hosp))
+def get_dir_name(options):
+    now = datetime.now()
+    dir = now.strftime("%Y_%m_%d_%H_%M_%S")
+    if options.out:
+        dir = options.out
+    outdir = path.join(f"{getcwd()}", "output", dir)
+    # In case we're running a few instances in a tight loop, generate a random
+    # output directory
+    if path.isdir(outdir):
+        dir = f"{dir}_{''.join(LET_NUMS.sample(6, replace=True))}"
+        outdir = path.join(f"{getcwd()}", "output", dir)
+    mkdir(outdir)
+    return outdir
 
-# This needs to use a as_of_days_ago as an input parameter to censor this df. (default to 0)
-# nobs = census_ts.shape[0] - as_of_days_ago
-nobs = census_ts.shape[0]
+
+# DIR = path.join(f"{getcwd()}", "output")
+
+N_CHAINS = OPTIONS.n_chains
+N_ITERS = OPTIONS.n_iters
+PENALTY = OPTIONS.penalty
+FIT_PENALTY = OPTIONS.fit_penalty
+SAMPLE_OBS = OPTIONS.sample_obs
+AS_OF_DAYS_AGO = OPTIONS.as_of
+DIR = get_dir_name(OPTIONS)
+OUTDIR = path.join(DIR, "output")
+mkdir(OUTDIR)
+FIGDIR = path.join(DIR, "figures")
+mkdir(FIGDIR)
+PARAMDIR = path.join(DIR, "parameters")
+mkdir(PARAMDIR)
+
+
+if not FIT_PENALTY:
+    assert PENALTY >= 0.05 and PENALTY < 1
+
+
+def get_inputs(options):
+    census_ts, params = None, None
+    if options.prefix is not None:
+        prefix = options.prefix
+        datadir = path.join(f"{getcwd()}", "data")
+        # import the census time series and set the zero day to be the first instance of zero
+        # TODO: Write these files so they can be used by step 2. Also good for the record.
+        # TODO: Need full filenames here so we can setup multiple parameter spaces for the same set of prefixs, etc...
+        census_ts = pd.read_csv(path.join(f"{datadir}", f"{prefix}_ts.csv"))
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"{datadir}", f"{prefix}_parameters.csv"))
+    if options.parameters is not None:
+        params = pd.read_csv(options.parameters)
+    if options.ts is not None:
+        census_ts = pd.read_csv(options.ts)
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+    return census_ts, params
+
+
+CENSUS_TS, PARAMS = get_inputs(OPTIONS)
+if CENSUS_TS is None or PARAMS is None:
+    print("You must specify either --prefix or --parameters and --ts")
+    print(p.format_help())
+    exit(1)
+
+
+def write_inputs(options):
+    with open(path.join(PARAMDIR, "args.json"), "w") as f:
+        json.dump(options.__dict__, f)
+    CENSUS_TS.to_csv(path.join(PARAMDIR, "census_ts.csv"), index=False)
+    PARAMS.to_csv(path.join(PARAMDIR, "params.csv"), index=False)
+    with open(path.join(PARAMDIR, "git.sha"), "w") as f:
+        f.write(Repo(search_parent_directories=True).head.object.hexsha)
+
+
+write_inputs(OPTIONS)
+
+NOBS = CENSUS_TS.shape[0] - AS_OF_DAYS_AGO
 
 # rolling window variance
 rwstd = []
-for i in range(nobs):
-    y = census_ts.hosp[:i][-7:]
+for i in range(NOBS):
+    y = CENSUS_TS.hosp[:i][-7:]
     rwstd.append(np.std(y))
-census_ts['hosp_rwstd'] = rwstd
+CENSUS_TS["hosp_rwstd"] = rwstd
 
 
 rwstd = []
-for i in range(nobs):
-    y = census_ts.vent[:i][-7:]
+for i in range(NOBS):
+    y = CENSUS_TS.vent[:i][-7:]
     rwstd.append(np.std(y))
-census_ts['vent_rwstd'] = rwstd
-    
+CENSUS_TS["vent_rwstd"] = rwstd
 
-if sample_obs:
+
+if SAMPLE_OBS:
     fig = plt.figure()
-    plt.plot(census_ts.vent, color = "red")
-    plt.fill_between(x = list(range(nobs)),
-                     y1 = census_ts.vent + 2*census_ts.vent_rwstd,
-                     y2 = census_ts.vent - 2*census_ts.vent_rwstd
-                     ,alpha=.3
-                     ,lw=2
-                     ,edgecolor='k')
+    plt.plot(CENSUS_TS.vent, color="red")
+    plt.fill_between(
+        x=list(range(NOBS)),
+        y1=CENSUS_TS.vent + 2 * CENSUS_TS.vent_rwstd,
+        y2=CENSUS_TS.vent - 2 * CENSUS_TS.vent_rwstd,
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
     plt.title("week-long rolling variance")
-    fig.savefig(path.join(f"{figdir}",f"{hospital}_observation_variance.pdf"))
+    fig.savefig(path.join(f"{FIGDIR}", f"observation_variance.pdf"))
 
 
 def loglik(r):
-    return -len(r)/2*(np.log(2*np.pi*np.var(r))) - 1/(2*np.pi*np.var(r))*np.sum(r**2)
+    return -len(r) / 2 * (np.log(2 * np.pi * np.var(r))) - 1 / (
+        2 * np.pi * np.var(r)
+    ) * np.sum(r ** 2)
 
 
 def do_shrinkage(pos, shrinkage):
-    densities = sps.beta.pdf(pos, a = shrinkage[0], b = shrinkage[1])
+    densities = sps.beta.pdf(pos, a=shrinkage[0], b=shrinkage[1])
     regularization_penalty = -np.sum(np.log(densities))
     return regularization_penalty
 
 
-def eval_pos(pos, shrinkage = None, holdout = 0, sample_obs = True):
-    '''function takes quantiles of the priors and outputs a posterior and relevant stats'''
-    draw = SIR_from_params(qdraw(pos, params))
-    obs = copy.deepcopy(census_ts)
+def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
+    """function takes quantiles of the priors and outputs a posterior and relevant stats"""
+    draw = SIR_from_params(qdraw(pos, PARAMS))
+    obs = deepcopy(CENSUS_TS)
     if sample_obs:
-        ynoise_h = np.random.normal(scale = obs.hosp_rwstd)
+        ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
         ynoise_h[0] = 0
         obs.hosp += ynoise_h
-        ynoise_v = np.random.normal(scale = obs.vent_rwstd)
+        ynoise_v = np.random.normal(scale=obs.vent_rwstd)
         ynoise_v[0] = 0
         obs.vent += ynoise_v
-    if holdout >0:
+    if holdout > 0:
         train = obs[:-holdout]
         test = obs[-holdout:]
     else:
         train = obs
 
-
     # loss for vent
     LL = 0
     residuals_vent = None
     if train.vent.sum() > 0:
-        residuals_vent = draw['arr'][:(nobs-holdout),5] - train.vent # 5 corresponds with vent census
+        residuals_vent = (
+            draw["arr"][: (NOBS - holdout), 5] - train.vent
+        )  # 5 corresponds with vent census
         if any(residuals_vent == 0):
-            residuals_vent[residuals_vent == 0] = .01
+            residuals_vent[residuals_vent == 0] = 0.01
         sigma2 = np.var(residuals_vent)
         LL += loglik(residuals_vent)
 
     # loss for hosp
-    residuals_hosp = draw['arr'][:(nobs-holdout),3] - train.hosp # 5 corresponds with vent census
+    residuals_hosp = (
+        draw["arr"][: (NOBS - holdout), 3] - train.hosp
+    )  # 5 corresponds with vent census
     if any(residuals_hosp == 0):
-        residuals_hosp[residuals_hosp == 0] = .01
+        residuals_hosp[residuals_hosp == 0] = 0.01
     sigma2 = np.var(residuals_hosp)
     LL += loglik(residuals_hosp)
 
-    Lprior = np.log(draw['parms'].prob).sum()
+    Lprior = np.log(draw["parms"].prob).sum()
     posterior = LL + Lprior
     # shrinkage -- the regarization parameter reaches its max value at the median of each prior.
     # the penalty gets subtracted off of the posterior
@@ -130,107 +230,122 @@ def eval_pos(pos, shrinkage = None, holdout = 0, sample_obs = True):
         assert (str(type(shrinkage).__name__) == "ndarray") & (len(shrinkage) == 2)
         posterior -= do_shrinkage(pos, shrinkage)
 
-    out = dict(pos = pos,
-               draw = draw,
-               posterior = posterior,
-               residuals_vent = residuals_vent,
-               residuals_hosp = residuals_hosp)
+    out = dict(
+        pos=pos,
+        draw=draw,
+        posterior=posterior,
+        residuals_vent=residuals_vent,
+        residuals_hosp=residuals_hosp,
+    )
     if holdout > 0:
-        res_te_vent = draw['arr'][(nobs-holdout):nobs,5] - test.vent
-        res_te_hosp = draw['arr'][(nobs-holdout):nobs,3] - test.hosp
-        test_loss = (np.mean(res_te_hosp**2) + np.mean(res_te_vent**2))/2
-        out.update({"test_loss":test_loss})
-    return(out)
+        res_te_vent = draw["arr"][(NOBS - holdout) : NOBS, 5] - test.vent
+        res_te_hosp = draw["arr"][(NOBS - holdout) : NOBS, 3] - test.hosp
+        test_loss = (np.mean(res_te_hosp ** 2) + np.mean(res_te_vent ** 2)) / 2
+        out.update({"test_loss": test_loss})
+    return out
 
 
-def chain(seed, shrinkage = None, holdout = 0, sample_obs = False):
+def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
     np.random.seed(seed)
     if shrinkage is not None:
-        assert (shrinkage < 1) and (shrinkage >= .05)
-        sq1 = shrinkage/2
-        sq2 = 1- shrinkage/2
+        assert (shrinkage < 1) and (shrinkage >= 0.05)
+        sq1 = shrinkage / 2
+        sq2 = 1 - shrinkage / 2
         shrinkage = beta_from_q(sq1, sq2)
-    current_pos = eval_pos(np.random.uniform(size = params.shape[0]), 
-                           shrinkage = shrinkage, holdout = holdout,
-                           sample_obs = sample_obs)
+    current_pos = eval_pos(
+        np.random.uniform(size=PARAMS.shape[0]),
+        shrinkage=shrinkage,
+        holdout=holdout,
+        sample_obs=sample_obs,
+    )
     outdicts = []
-    U = np.random.uniform(0, 1, n_iters)
-    for ii in range(n_iters):
+    U = np.random.uniform(0, 1, N_ITERS)
+    for ii in range(N_ITERS):
         try:
-            proposed_pos = eval_pos(jumper(current_pos['pos'], .1), 
-                                    shrinkage = shrinkage, holdout = holdout,
-                                    sample_obs = sample_obs)
-            p_accept = np.exp(proposed_pos['posterior']-current_pos['posterior'])
+            proposed_pos = eval_pos(
+                jumper(current_pos["pos"], 0.1),
+                shrinkage=shrinkage,
+                holdout=holdout,
+                sample_obs=sample_obs,
+            )
+            p_accept = np.exp(proposed_pos["posterior"] - current_pos["posterior"])
             if U[ii] < p_accept:
                 current_pos = proposed_pos
 
         except Exception as e:
             print(e)
         # append the relevant results
-        out = {current_pos['draw']['parms'].param[i]:current_pos['draw']['parms'].val[i] for i in range(params.shape[0])}
-        out.update({"arr": current_pos['draw']['arr']})
-        out.update({"iter":ii})
-        out.update({"chain":seed})
-        out.update({'posterior':proposed_pos['posterior']})
-        out.update({'offset': current_pos['draw']['offset']})
+        out = {
+            current_pos["draw"]["parms"].param[i]: current_pos["draw"]["parms"].val[i]
+            for i in range(PARAMS.shape[0])
+        }
+        out.update({"arr": current_pos["draw"]["arr"]})
+        out.update({"iter": ii})
+        out.update({"chain": seed})
+        out.update({"posterior": proposed_pos["posterior"]})
+        out.update({"offset": current_pos["draw"]["offset"]})
         if holdout > 0:
-            out.update({'test_loss': current_pos['test_loss']})
+            out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
         if shrinkage is None:
             # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
             if (ii % 1000) == 0:
-                print('chain', seed, 'iter', ii)
+                print("chain", seed, "iter", ii)
     return pd.DataFrame(outdicts)
 
 
-def loop_over_shrinkage(seed, holdout=7, shrvec = np.linspace(.05, .95, 10)):
+def loop_over_shrinkage(seed, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
     test_loss = []
     for shr in shrvec:
         chain_out = chain(seed, shr, holdout)
-        test_loss.append(chain_out['test_loss'])
+        test_loss.append(chain_out["test_loss"])
     return test_loss
 
 
 def get_test_loss(seed, holdout, shrinkage):
-    return chain(seed, shrinkage, holdout)['test_loss']
+    return chain(seed, shrinkage, holdout)["test_loss"]
 
 
-if penalty_factor<0:
-    pen_vec = np.linspace(.05, .95, 10)
-    tuples_for_starmap = [(i, 7, j) for i in range(n_chains) for j in pen_vec]
+if FIT_PENALTY:
+    pen_vec = np.linspace(0.05, 0.95, 10)
+    tuples_for_starmap = [(i, 7, j) for i in range(N_CHAINS) for j in pen_vec]
     pool = mp.Pool(mp.cpu_count())
     shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
     pool.close()
     # put together the mp results
-    chain_dict = {i:[] for i in pen_vec}
+    chain_dict = {i: [] for i in pen_vec}
     for i in range(len(tuples_for_starmap)):
-        chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][1000:].tolist()# get the penalty value
+        chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][
+            1000:
+        ].tolist()  # get the penalty value
 
     mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
 
     fig = plt.figure()
     plt.plot(pen_vec, mean_test_loss)
-    plt.fill_between(x = pen_vec,
-                     y1 = [float(np.quantile(chain_dict[i][1000:], [.025])) for i in pen_vec],
-                     y2 = [float(np.quantile(chain_dict[i][1000:], [.975])) for i in pen_vec],
-                     alpha=.3,
-                     lw=2,
-                     edgecolor='k')
-    plt.xlabel('penalty factor')
-    plt.ylabel('test MSE')
-    fig.savefig(path.join(f"{figdir}",f"{hospital}_shrinkage_grid_GOF.pdf"))
+    plt.fill_between(
+        x=pen_vec,
+        y1=[float(np.quantile(chain_dict[i][1000:], [0.025])) for i in pen_vec],
+        y2=[float(np.quantile(chain_dict[i][1000:], [0.975])) for i in pen_vec],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.xlabel("penalty factor")
+    plt.ylabel("test MSE")
+    fig.savefig(path.join(f"{FIGDIR}", f"shrinkage_grid_GOF.pdf"))
 
     # identify the best penalty
     best_penalty = pen_vec[np.argmin(mean_test_loss)]
-elif penalty_factor < 1:
-    best_penalty = penalty_factor
+elif PENALTY < 1:
+    best_penalty = PENALTY
 
-tuples_for_starmap = [(i, best_penalty, 0, sample_obs) for i in range(n_chains)]
+tuples_for_starmap = [(i, best_penalty, 0, SAMPLE_OBS) for i in range(N_CHAINS)]
 
 # get the final answer based on the best penalty
 pool = mp.Pool(mp.cpu_count())
 chains = pool.starmap(chain, tuples_for_starmap)
 pool.close()
 
-df = pd.concat(chains)
-df.to_pickle(path.join(f'{outdir}',f'{hospital}_chains.pkl'))
+df = pd.concat(chains, ignore_index=True)
+df.to_json(path.join(f"{OUTDIR}", f"chains.json.bz2"), orient='records', lines=True)
