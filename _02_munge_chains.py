@@ -88,7 +88,7 @@ def plt_predictive(howfar=200):
     # hosp
     axx = ax[0,0]
     axx.plot_date(dates, arrq[2,:howfar,3], '-', label = 'posterior median')
-    axx.set_ylabel(f'Hospital census', fontsize=12, fontweight='bold')
+    axx.set_ylabel(f'COVID-19 Hospital census', fontsize=12, fontweight='bold')
     #axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
                        y1 = arrq[0,:howfar,3],
@@ -113,7 +113,7 @@ def plt_predictive(howfar=200):
 
     axx = ax[0,1]
     axx.plot_date(dates, arrq[2,:howfar,5], '-', label = 'posterior median')
-    axx.set_ylabel(f'Vent census', fontsize=12, fontweight='bold')
+    axx.set_ylabel(f'COVID-19 Vent census', fontsize=12, fontweight='bold')
     #axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
                        y1 = arrq[0,:howfar,5],
@@ -139,7 +139,7 @@ def plt_predictive(howfar=200):
     # Admits
     axx = ax[1,0]
     axx.plot_date(dates,arrq[2,:howfar,0], '-', label = 'posterior median')
-    axx.set_ylabel(f'Hospital Admits', fontsize=12, fontweight='bold')
+    axx.set_ylabel(f'COVID-19 Hospital Admits', fontsize=12, fontweight='bold')
     #axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
                        y1 = arrq[0,:howfar,0],
@@ -160,7 +160,7 @@ def plt_predictive(howfar=200):
 
     axx = ax[1,1]
     axx.plot_date(dates, arrq[2,:howfar,2], '-', label = 'posterior median')
-    axx.set_ylabel(f'Vent Admits', fontsize=12, fontweight='bold')
+    axx.set_ylabel(f'COVID-19 Vent Admits', fontsize=12, fontweight='bold')
     #axx.set_xlabel(f'Days since {first_day}', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
                        y1 = arrq[0,:howfar,2],
