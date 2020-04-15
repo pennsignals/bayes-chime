@@ -6,28 +6,37 @@ Many factors surrounding the transmission, severity of infections, and remaining
 
 # Usage
 
-First run the sims by passing the name of the location (matching the prefix of the `data/<prefix>_parameters.csv` and `data/<prefix>_ts.csv` files).
+First run the sims by passing either the (old-style) prefix or the new-style parameters and ts files.
 
 ```bash
-python _01_GOF_sims.py <prefix> <n_chains> <n_iters> <penalty_factor>
+# Old-style
+python _01_GOF_sims.py -P <prefix> -C <n_chains> -i <n_iters>
+# New-style
+python _01_GOF_sims.py -p <parameters_file> -t <ts_file> -C <n_chains> -i <n_iters>
 ```
+
+After the script finishes running it will output the `<output_dir>` which is used by the next step.
 
 To run for each of a list of locations, use:
 
 ```bash
-for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py $loc 8 5000 -99; done
+for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000; done
+```
+
+If you want to auto-fit a penalty factor (for shrinkage) you can pass `-f`:
+```bash
+python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000 -f
 ```
 
 If you already know the appropriate penalty factor, (and it's common across all the hospitals), do this instead:
-
 ```bash
-for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py $loc 8 5000 <<known_penalty_factor>>; done
+python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000 --penalty 0.5
 ```
-THe penalty factor should be between .05 and less than 1.  1 is maximum penalization.
+The penalty factor should be between .05 and less than 1.  1 is maximum penalization.
 
-Results will be saved to `output/<prefix>_chains.pkl`, which can be analysed/plotted using:
+Results will be saved to `output/<output_dir>/output/chains.json.bz2`, which can be analysed/plotted using:
 
 ```bash
-for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _02_munge_chains.py $loc; done
+python _02_munge_chains.py -o <output_dir>
 ```
 
