@@ -162,7 +162,9 @@ def main():
     )
     options = p.parse_args()
 
-    dir = path.join(f"{getcwd()}", "output", options.out)
+    dir = options.out
+    if not path.isdir(dir):
+        dir = path.join(f"{getcwd()}", "output", options.out)
     paramdir = path.join(dir, "parameters")
     outdir = path.join(dir, 'output')
     figdir = path.join(dir, 'figures')
