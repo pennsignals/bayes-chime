@@ -26,9 +26,9 @@ def get_dir_name(options):
     now = datetime.now()
     dir = now.strftime("%Y_%m_%d_%H_%M_%S")
     if options.prefix:
-        dir += f"_{options.prefix}"
+        dir = f"{dir}_{options.prefix}"
     if options.out:
-        dir += f"_{options.out}"
+        dir = f"{dir}_{options.out}"
     outdir = path.join(f"{getcwd()}", "output", dir)
     # In case we're running a few instances in a tight loop, generate a random
     # output directory
