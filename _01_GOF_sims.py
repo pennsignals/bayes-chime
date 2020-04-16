@@ -25,8 +25,10 @@ N_ITERS = None
 def get_dir_name(options):
     now = datetime.now()
     dir = now.strftime("%Y_%m_%d_%H_%M_%S")
+    if options.prefix:
+        dir = f"{dir}_{options.prefix}"
     if options.out:
-        dir = options.out
+        dir = f"{dir}_{options.out}"
     outdir = path.join(f"{getcwd()}", "output", dir)
     # In case we're running a few instances in a tight loop, generate a random
     # output directory
@@ -103,7 +105,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
     residuals_vent = None
     if train.vent.sum() > 0:
         residuals_vent = (
-                draw["arr"][: (NOBS - holdout), 5] - train.vent
+                draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
         )  # 5 corresponds with vent census
         if any(residuals_vent == 0):
             residuals_vent[residuals_vent == 0] = 0.01
@@ -112,7 +114,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
 
     # loss for hosp
     residuals_hosp = (
-            draw["arr"][: (NOBS - holdout), 3] - train.hosp
+            draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
     )  # 5 corresponds with vent census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = 0.01
@@ -135,8 +137,8 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
         residuals_hosp=residuals_hosp,
     )
     if holdout > 0:
-        res_te_vent = draw["arr"][(NOBS - holdout) : NOBS, 5] - test.vent
-        res_te_hosp = draw["arr"][(NOBS - holdout) : NOBS, 3] - test.hosp
+        res_te_vent = draw["arr"][(NOBS - holdout) : NOBS, 5] - test.vent.values[:NOBS]
+        res_te_hosp = draw["arr"][(NOBS - holdout) : NOBS, 3] - test.hosp.values[:NOBS]
         test_loss = (np.mean(res_te_hosp ** 2) + np.mean(res_te_vent ** 2)) / 2
         out.update({"test_loss": test_loss})
     return out
@@ -284,14 +286,16 @@ def main():
     for i in range(NOBS):
         y = CENSUS_TS.hosp[:i][-7:]
         rwstd.append(np.std(y))
-    CENSUS_TS["hosp_rwstd"] = rwstd
+    CENSUS_TS["hosp_rwstd"] = np.nan
+    CENSUS_TS.loc[range(NOBS), "hosp_rwstd"] = rwstd
 
 
     rwstd = []
     for i in range(NOBS):
         y = CENSUS_TS.vent[:i][-7:]
         rwstd.append(np.std(y))
-    CENSUS_TS["vent_rwstd"] = rwstd
+    CENSUS_TS["vent_rwstd"] = np.nan
+    CENSUS_TS.loc[range(NOBS), "vent_rwstd"] = rwstd
 
 
     if sample_obs:
