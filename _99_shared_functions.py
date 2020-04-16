@@ -81,7 +81,7 @@ def qdraw(qvec, p_df):
                        val = p_df.base.iloc[i],
                        prob = 1)
         else:
-            # need to construct this differently for different distributoons because fuck scipy
+            # Construct this differently for different distributoons
             if p_df.distribution.iloc[i] == 'gamma':
                 p = (qvec[i],p_df.p1.iloc[i], 0, p_df.p2.iloc[i])
             elif p_df.distribution.iloc[i] == 'beta':
