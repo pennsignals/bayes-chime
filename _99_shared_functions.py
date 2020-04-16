@@ -43,15 +43,25 @@ def sir(y, alpha, beta, gamma, nu, N):
     scale = N / (Sn + En + In + Rn)
     return Sn * scale, En * scale, In * scale, Rn * scale
 
+def reopenfn(day, reopen_day=60, reopen_speed=0.1):
+    if day < reopen_day:
+        return 1.0
+    else:
+        return (1-reopen_speed)**(day-reopen_day)
+
 
 # Run the SIR model forward in time
-def sim_sir(S, E, I, R, alpha, beta, gamma, nu, n_days, logistic_L, logistic_k, logistic_x0):
+def sim_sir(S, E, I, R, alpha, beta, gamma, nu, n_days, 
+    logistic_L, logistic_k, logistic_x0,
+    reopen_day=1000, reopen_speed=0.0):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
     for day in range(n_days):
         y = S, E, I, R
         # evaluate logistic
-        beta_t = beta*(1-logistic(logistic_L, logistic_k, logistic_x0, x = day))
+        sd = logistic(logistic_L, logistic_k, logistic_x0, x = day)
+        sd *= reopenfn(day, reopen_day, reopen_speed)
+        beta_t = beta*(1-sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
         e.append(E)
@@ -127,6 +137,12 @@ def SIR_from_params(p_df):
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
     beta = float(p_df.val.loc[p_df.param == 'beta']) # get beta directly rather than via doubling time
     nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
+
+    reopen_day, reopen_speed = 1000, 0.0
+    if 'reopen_day' in p_df.param.values:
+        reopen_day = int(p_df.val.loc[p_df.param == 'reopen_day'])
+    if 'reopen_speed' in p_df.param.values:
+        reopen_speed = float(p_df.val.loc[p_df.param == 'reopen_speed'])
     #
     alpha = 1 / incubation_days
     gamma = 1 / recovery_days  # , random_draw=random_draw)
@@ -160,7 +176,9 @@ def SIR_from_params(p_df):
                       n_days=n_days + offset,
                       logistic_L = logistic_L,
                       logistic_k = logistic_k,
-                      logistic_x0 = logistic_x0 + offset)
+                      logistic_x0 = logistic_x0 + offset,
+                      reopen_day = reopen_day,
+                      reopen_speed = reopen_speed)
 
     hosp_raw = hosp_prop
     ICU_raw = hosp_raw * ICU_prop  # coef param
