@@ -15,7 +15,7 @@ def logistic(L, k, x0, x):
 def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, howfar=200):
     # predictive plot
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
-    arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
+    arrq = np.quantile(arrs, axis = 0, q = [.025, .25, .5, .75, .975])
 
     dates = pd.date_range(f'{first_day}',
                           periods=howfar, freq='d')
@@ -27,7 +27,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.fill_between(x = dates,
                      y1 = arrq[0,:howfar,3],
                      y2 = arrq[4,:howfar,3],
-                     label = '90% Credible Region',
+                     label = '95% Credible Region',
                      alpha = .1,
                      lw = 2,
                      edgecolor = "k")
@@ -51,7 +51,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.fill_between(x = dates,
                      y1 = arrq[0,:howfar,5],
                      y2 = arrq[4,:howfar,5],
-                     label = '90% Credible Region',
+                     label = '95% Credible Region',
                      alpha = .1,
                      lw = 2,
                      edgecolor = "k",)
@@ -76,7 +76,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.fill_between(x = dates,
                      y1 = arrq[0,:howfar,0],
                      y2 = arrq[4,:howfar,0],
-                     label = '90% Credible Region',
+                     label = '95% Credible Region',
                      alpha = .1,
                      lw = 2,
                      edgecolor = "k")
@@ -96,7 +96,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.fill_between(x = dates,
                      y1 = arrq[0,:howfar,2],
                      y2 = arrq[4,:howfar,2],
-                     label = '90% Credible Region',
+                     label = '95% Credible Region',
                      alpha = .1,
                      lw = 2,
                      edgecolor = "k",)
