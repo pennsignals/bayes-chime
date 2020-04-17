@@ -197,7 +197,7 @@ def SIR_from_params(p_df):
             #  NOTE: This is still an *underaccounting* of stochastic
             #        process which would compound over time.
             #        This would require that the SEIR were truly stocastic.
-            stocastic_dist = 'beta'
+            stocastic_dist = 'binomial'
             if stocastic_dist == 'binomial':
                 #  Discrete individuals
                 e_int = e.astype(int) + s.astype(int)
