@@ -12,7 +12,7 @@ def logistic(L, k, x0, x):
     return L/(1+np.exp(-k*(x-x0)))
 
 # plot of chains
-def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, howfar=200):
+def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=200):
     # predictive plot
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
     arrq = np.quantile(arrs, axis = 0, q = [.05, .25, .5, .75, .95])
@@ -42,6 +42,9 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
                   color = "red",
                   label = "observed")
     axx.axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
+    axx.axvline(x= dates.values[census_ts.hosp.shape[0]-as_of_days_ago],
+      color='grey', ls='--', label = "Last Datapoint Used")
+    
     axx.legend()
     axx.grid(True)
 
@@ -66,6 +69,8 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.plot_date(dates[:census_ts.vent.shape[0]], census_ts.vent, '-',
                   color = "red",
                   label = "observed")
+    axx.axvline(x= dates.values[census_ts.hosp.shape[0]-as_of_days_ago],
+      color='grey', ls='--', label = "Last Datapoint Used")
     axx.legend()
     axx.grid(True)
 
@@ -182,7 +187,7 @@ def main():
 
     # Chains
     df = pd.read_json(path.join(f'{outdir}', 'chains.json.bz2'), orient='records', lines=True)
-
+    print(f"READ chains file: {df.shape[0]} total iterations")
     # remove burn-in
     # Make 1000 configurable
     df = df.loc[(df.iter>1000)] #& (~df.chain.isin([1, 12]))]
@@ -215,9 +220,9 @@ def main():
     plt.ylim(0,1)
     fig.savefig(path.join(f"{figdir}", "effective_soc_dist.pdf"))
 
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, howfar=40)
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, howfar=100)
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, howfar=200)
+    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=40)
+    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=100)
+    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=200)
 
     mk_projection_tables(df, first_day, outdir)
 
