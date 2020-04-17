@@ -16,4 +16,4 @@ logistic_L,0.5,beta,2,3,logistic depth of social distancing
 nu,2.5,gamma,93.9552169,0.02634306,Networked contact structure power-law exponent
 beta,0.25,beta,5,10,SEIR beta parameter (force of infection)
 hosp_capacity,,constant,,,Hospital Bed Capacity
-vent_capacity,,constant,,,Ventilator Capacity
+vent_capacity,111,constant,,,Ventilator Capacity
