@@ -194,6 +194,9 @@ def SIR_from_params(p_df):
 
             #  Sample from expected new infections as
             #  a proportion of Exposed + Succeptible
+            #  NOTE: This is still an *underaccounting* of stochastic
+            #        process which would compound over time.
+            #        This would require that the SEIR were truly stocastic.
             e_int = e.astype(int) + s.astype(int)
             ds = np.random.binomial(e_int, ds / e_int)
             ds = ds[offset:]
