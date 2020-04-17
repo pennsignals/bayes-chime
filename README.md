@@ -20,17 +20,17 @@ After the script finishes running it will output the `<output_dir>` which is use
 To run for each of a list of locations, use:
 
 ```bash
-for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000; done
+for loc in 'CCH' 'LGH' 'Downtown' 'MCP'; do python _01_GOF_sims.py -p data/"$loc"_parameters.csv -t data/"$loc"_ts.csv -C 8 -i 5000; done
 ```
 
 If you want to auto-fit a penalty factor (for shrinkage) you can pass `-f`:
 ```bash
-python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000 -f
+python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/"$loc"_ts.csv -C 8 -i 5000 -f
 ```
 
 If you already know the appropriate penalty factor, (and it's common across all the hospitals), do this instead:
 ```bash
-python _01_GOF_sims.py -p data/$loc_parameters.csv -t data/$loc_ts.csv -C 8 -i 5000 --penalty 0.5
+python _01_GOF_sims.py -p data/"$loc"_parameters.csv -t data/"$loc"_ts.csv -C 8 -i 5000 --penalty 0.5
 ```
 The penalty factor should be between .05 and less than 1.  1 is maximum penalization.
 
