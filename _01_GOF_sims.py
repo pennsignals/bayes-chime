@@ -178,7 +178,8 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
             current_pos["draw"]["parms"].param[i]: current_pos["draw"]["parms"].val[i]
             for i in range(PARAMS.shape[0])
         }
-        out.update({"arr": current_pos["draw"]["arr"]})
+        #out.update({"arr": current_pos["draw"]["arr"]})
+        out.update({"arr": current_pos["draw"]["arr_stoch"]})
         out.update({"iter": ii})
         out.update({"chain": seed})
         out.update({"posterior": proposed_pos["posterior"]})
