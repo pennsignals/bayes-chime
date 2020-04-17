@@ -3,9 +3,9 @@ n_hosp,1,constant,,,Number of hospitalized COVID-19 patients on day 1
 hosp_prop,0.025,gamma,6.326832789,0.004168888,Prportion of infections requiring hospitalization
 ICU_prop,0.45,beta,52.0593112,96.8674197,Proportion of hospitalizations admitted to ICU
 vent_prop,0.66,beta,5.224029085,3.078885266,Proportion of ICU patients requiring ventilation
-hosp_LOS,12,gamma,406.7267884,0.023635242,Hospital Length of Stay
-ICU_LOS,9,gamma,32.47013734,0.269338749,ICU Length of Stay
-vent_LOS,1.111111111,gamma,32.47013615,0.033667345,coef on ICU LOS
+hosp_LOS,12,gamma,75.515,0.116,Hospital Length of Stay
+ICU_LOS,9,gamma,18.522,0.707,ICU Length of Stay
+vent_LOS,1.111111111,gamma,29.618,0.528,time on vent
 mkt_share,0.87,constant,NA,NA,Hospital Market Share (%)
 region_pop,540000,constant,NA,NA,Regional Population
 incubation_days,5,gamma,9.514379271,0.513980244,Days from exposure to infectiousness
