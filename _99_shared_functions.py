@@ -205,6 +205,7 @@ def SIR_from_params(p_df):
                 prob_i = prob_i.apply(lambda x: min(x, 1.0))
                 prob_i = prob_i.apply(lambda x: max(x, 0.0))
                 ds = np.random.binomial(e_int, prob_i)
+                ds = ds[offset:]
 
                 #  Sample admissions as proportion of
                 #  new infections.
