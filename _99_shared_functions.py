@@ -199,8 +199,8 @@ def SIR_from_params(p_df):
             #        This would require that the SEIR were truly stocastic.
             e_int = e.astype(int) + s.astype(int)
             prob_i = pd.Series(ds / e_int).fillna(0.0)
-            prob_i = prob_i.apply(lambda x: max(x, 1.0))
-            prob_i = prob_i.apply(lambda x: min(x, 0.0))
+            prob_i = prob_i.apply(lambda x: min(x, 1.0))
+            prob_i = prob_i.apply(lambda x: max(x, 0.0))
             ds = np.random.binomial(e_int, prob_i)
             ds = ds[offset:]
 

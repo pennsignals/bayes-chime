@@ -220,7 +220,7 @@ def main():
     plt.ylim(0,1)
     fig.savefig(path.join(f"{figdir}", "effective_soc_dist.pdf"))
 
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=40)
+    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=45)
     plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=100)
     plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=200)
 
