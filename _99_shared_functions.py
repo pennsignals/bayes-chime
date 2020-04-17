@@ -202,7 +202,7 @@ def SIR_from_params(p_df):
     # census df
     hosp_LOS_raw = hosp_LOS
     ICU_LOS_raw = ICU_LOS
-    vent_LOS_raw = ICU_LOS_raw * vent_LOS  # this is a coef
+    vent_LOS_raw = vent_LOS
 
     los_dict = {
         "hosp_census": hosp_LOS_raw,
