@@ -169,13 +169,16 @@ def SIR_from_params(p_df):
                       reopen_day = reopen_day,
                       reopen_speed = reopen_speed)
 
-    ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
-    ds = np.array([0] + list(ds))
-    ds = ds[offset:]
+
 
     arrs = {}
     for sim_type in ['mean', 'stochastic']:
         if sim_type == 'mean':
+
+            ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
+            ds = np.array([0] + list(ds))
+            ds = ds[offset:]
+
             hosp_raw = hosp_prop
             ICU_raw = hosp_raw * ICU_prop  # coef param
             vent_raw = ICU_raw * vent_prop  # coef param
@@ -185,6 +188,18 @@ def SIR_from_params(p_df):
             vent = ds * vent_raw * mkt_share
         elif sim_type == 'stochastic':
             # Sampling Stochastic Observation
+
+            ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
+            ds = np.array([0] + list(ds))
+
+            #  Sample from expected new infections as
+            #  a proportion of Exposed + Succeptible
+            e_int = e.astype(int) + s.astype(int)
+            ds = np.random.binomial(e_int, ds / e_int)
+            ds = ds[offset:]
+
+            #  Sample admissions as proportion of
+            #  new infections.
             hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
             icu = np.random.binomial(hosp, ICU_prop)
             vent = np.random.binomial(icu, vent_prop)
