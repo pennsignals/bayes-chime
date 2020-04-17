@@ -198,7 +198,8 @@ def SIR_from_params(p_df):
             #        process which would compound over time.
             #        This would require that the SEIR were truly stocastic.
             e_int = e.astype(int) + s.astype(int)
-            ds = np.random.binomial(e_int, ds / e_int)
+            prob_i = pd.Series(ds / e_int).replace(np.inf, 0.0).fillna(0.0)
+            ds = np.random.binomial(e_int, prob_i)
             ds = ds[offset:]
 
             #  Sample admissions as proportion of
