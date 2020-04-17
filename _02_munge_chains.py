@@ -12,16 +12,22 @@ def logistic(L, k, x0, x):
     return L/(1+np.exp(-k*(x-x0)))
 
 # plot of chains
-def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=200):
+def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity,
+                   figdir, as_of_days_ago, howfar=200, y_max=None, prefix=''):
     # predictive plot
+    file_howfar = howfar
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
     arrq = np.quantile(arrs, axis = 0, q = [.025, .25, .5, .75, .975])
+    howfar = len(census_ts.hosp) + howfar
+    howfar = np.min([howfar, arrs.shape[1]])
 
     dates = pd.date_range(f'{first_day}',
                           periods=howfar, freq='d')
     fig, ax = plt.subplots(figsize=(16, 10), ncols=2, nrows=2, sharex=True)
     # hosp
     axx = ax[0,0]
+    if y_max:
+        axx.set_ylim((0, y_max))
     axx.plot_date(dates, arrq[2,:howfar,3], '-', label = 'posterior median')
     axx.set_ylabel(f'COVID-19 Hospital census', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
@@ -49,6 +55,8 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.grid(True)
 
     axx = ax[0,1]
+    if y_max:
+        axx.set_ylim((0, y_max))
     axx.plot_date(dates, arrq[2,:howfar,5], '-', label = 'posterior median')
     axx.set_ylabel(f'COVID-19 Vent census', fontsize=12, fontweight='bold')
     axx.fill_between(x = dates,
@@ -116,7 +124,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.grid(True)
     fig.autofmt_xdate()
     fig.tight_layout()
-    fig.savefig(path.join(f"{figdir}", f"forecast_{howfar}_day.pdf"))
+    fig.savefig(path.join(f"{figdir}", f"{prefix}forecast_{file_howfar}_day.pdf"))
 
 
 def mk_projection_tables(df, first_day, outdir):
@@ -165,7 +173,24 @@ def main():
         help="number of days in the past to project from",
         type=int,
     )
+    p.add("-y", "--y_max", help="max y-scale for the census graph", type=int)
+    p.add(
+        "-d",
+        "--n_days",
+        help="make a census/admits plot out to n_days",
+        type=int,
+        action="append",
+    )
+    p.add("-P", "--prefix", help="prefix for filenames")
     options = p.parse_args()
+
+    prefix = ''
+    if options.prefix is not None:
+        prefix = f"{options.prefix}_"
+
+    n_days = [30, 90, 180]
+    if options.n_days:
+        n_days = options.n_days
 
     dir = options.out
     if not path.isdir(dir):
@@ -218,11 +243,13 @@ def main():
     plt.ylabel(f'Relative (effective) social contact')
     plt.xlabel(f'Days since {first_day}')
     plt.ylim(0,1)
-    fig.savefig(path.join(f"{figdir}", "effective_soc_dist.pdf"))
+    fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
 
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=40)
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=100)
-    plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdir, as_of_days_ago, howfar=200)
+    for howfar in n_days:
+        plt_predictive(
+            df, first_day, census_ts, hosp_capacity, vent_capacity, figdir,
+            as_of_days_ago, howfar=howfar, prefix=prefix, y_max=options.y_max
+        )
 
     mk_projection_tables(df, first_day, outdir)
 
@@ -256,7 +283,7 @@ def main():
         ax[i].set_xlabel(params.loc[params.param == cname, 'description'].iloc[0])
         ax[i].legend()
     plt.tight_layout()
-    fig.savefig(path.join(f'{figdir}', 'marginal_posteriors_v2.pdf'))
+    fig.savefig(path.join(f'{figdir}', f'{prefix}marginal_posteriors_v2.pdf'))
 
 if __name__ == '__main__':
     main()
