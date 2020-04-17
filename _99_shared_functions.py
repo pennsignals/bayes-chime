@@ -197,18 +197,35 @@ def SIR_from_params(p_df):
             #  NOTE: This is still an *underaccounting* of stochastic
             #        process which would compound over time.
             #        This would require that the SEIR were truly stocastic.
-            e_int = e.astype(int) + s.astype(int)
-            prob_i = pd.Series(ds / e_int).fillna(0.0)
-            prob_i = prob_i.apply(lambda x: min(x, 1.0))
-            prob_i = prob_i.apply(lambda x: max(x, 0.0))
-            ds = np.random.binomial(e_int, prob_i)
-            ds = ds[offset:]
+            stocastic_dist = 'beta'
+            if stocastic_dist == 'binomial':
+                #  Discrete individuals
+                e_int = e.astype(int) + s.astype(int)
+                prob_i = pd.Series(ds / e_int).fillna(0.0)
+                prob_i = prob_i.apply(lambda x: min(x, 1.0))
+                prob_i = prob_i.apply(lambda x: max(x, 0.0))
+                ds = np.random.binomial(e_int, prob_i)
 
-            #  Sample admissions as proportion of
-            #  new infections.
-            hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
-            icu = np.random.binomial(hosp, ICU_prop)
-            vent = np.random.binomial(icu, vent_prop)
+                #  Sample admissions as proportion of
+                #  new infections.
+                hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
+                icu = np.random.binomial(hosp, ICU_prop)
+                vent = np.random.binomial(icu, vent_prop)
+            elif stocastic_dist == 'beta':
+                #  Continuous fractions of individuals
+                e_int = e + s
+                prob_i = pd.Series(ds / e_int).fillna(0.0)
+                prob_i = prob_i.apply(lambda x: min(x, 1.0))
+                prob_i = prob_i.apply(lambda x: max(x, 0.0))
+                ds = np.random.beta(prob_i*e_int+1, (1-prob_i)*e_int+1) * e_int
+                ds = ds[offset:]
+
+                #  Sample admissions as proportion of
+                #  new infections.
+                hosp = np.random.beta(ds * hosp_prop * mkt_share +1, ds * (1- hosp_prop * mkt_share)+1) * ds
+                icu = np.random.beta(hosp * ICU_prop + 1, hosp * (1-ICU_prop) + 1) * hosp
+                vent = np.random.beta(icu * vent_prop + 1, icu * (1-vent_prop) +1) * icu
+
 
         # make a data frame with all the stats for plotting
         days = np.array(range(0, n_days + 1))

@@ -41,7 +41,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
     axx.plot_date(dates[:census_ts.hosp.shape[0]], census_ts.hosp, '-',
                   color = "red",
                   label = "observed")
-    axx.axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
+    #axx.axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
     axx.axvline(x= dates.values[census_ts.hosp.shape[0]-as_of_days_ago],
       color='grey', ls='--', label = "Last Datapoint Used")
     
@@ -65,7 +65,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity, figdi
                      alpha = .1,
                      lw = 2,
                      edgecolor = "k")
-    axx.axhline(y=vent_capacity, color='k', ls='--', label = "vent capacity")
+    #axx.axhline(y=vent_capacity, color='k', ls='--', label = "vent capacity")
     axx.plot_date(dates[:census_ts.vent.shape[0]], census_ts.vent, '-',
                   color = "red",
                   label = "observed")
