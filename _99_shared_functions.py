@@ -169,47 +169,57 @@ def SIR_from_params(p_df):
                       reopen_day = reopen_day,
                       reopen_speed = reopen_speed)
 
-    hosp_raw = hosp_prop
-    ICU_raw = hosp_raw * ICU_prop  # coef param
-    vent_raw = ICU_raw * vent_prop  # coef param
-
     ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
     ds = np.array([0] + list(ds))
     ds = ds[offset:]
 
-    hosp = ds * hosp_raw * mkt_share
-    icu = ds * ICU_raw * mkt_share
-    vent = ds * vent_raw * mkt_share
+    arrs = {}
+    for sim_type in ['mean', 'stochastic']:
+        if sim_type == 'mean':
+            hosp_raw = hosp_prop
+            ICU_raw = hosp_raw * ICU_prop  # coef param
+            vent_raw = ICU_raw * vent_prop  # coef param
 
-    # make a data frame with all the stats for plotting
-    days = np.array(range(0, n_days + 1))
-    data_list = [days, hosp, icu, vent]
-    data_dict = dict(zip(["day", "hosp_adm", "icu_adm", "vent_adm"], data_list))
-    projection = pd.DataFrame.from_dict(data_dict)
-    projection_admits = projection
-    projection_admits["day"] = range(projection_admits.shape[0])
-    # census df
-    hosp_LOS_raw = hosp_LOS
-    ICU_LOS_raw = ICU_LOS
-    vent_LOS_raw = vent_LOS
+            hosp = ds * hosp_raw * mkt_share
+            icu = ds * ICU_raw * mkt_share
+            vent = ds * vent_raw * mkt_share
+        elif sim_type == 'stochastic':
+            # Sampling Stochastic Observation
+            hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
+            icu = np.random.binomial(hosp, ICU_prop)
+            vent = np.random.binomial(icu, vent_prop)
 
-    los_dict = {
-        "hosp_census": hosp_LOS_raw,
-        "icu_census": ICU_LOS_raw,
-        "vent_census": vent_LOS_raw,
-    }
-    census_dict = {}
-    for k, los in los_dict.items():
-        census = (
-                projection_admits.cumsum().iloc[:-int(los), :]
-                - projection_admits.cumsum().shift(int(los)).fillna(0)
-        ).apply(np.ceil)
-        census_dict[k] = census[re.sub("_census", "_adm", k)]
-    proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
-    proj = proj.fillna(0)
+        # make a data frame with all the stats for plotting
+        days = np.array(range(0, n_days + 1))
+        data_list = [days, hosp, icu, vent]
+        data_dict = dict(zip(["day", "hosp_adm", "icu_adm", "vent_adm"], data_list))
+        projection = pd.DataFrame.from_dict(data_dict)
+        projection_admits = projection
+        projection_admits["day"] = range(projection_admits.shape[0])
+        # census df
+        hosp_LOS_raw = hosp_LOS
+        ICU_LOS_raw = ICU_LOS
+        vent_LOS_raw = vent_LOS
+
+        los_dict = {
+            "hosp_census": hosp_LOS_raw,
+            "icu_census": ICU_LOS_raw,
+            "vent_census": vent_LOS_raw,
+        }
+        census_dict = {}
+        for k, los in los_dict.items():
+            census = (
+                    projection_admits.cumsum().iloc[:-int(los), :]
+                    - projection_admits.cumsum().shift(int(los)).fillna(0)
+            ).apply(np.ceil)
+            census_dict[k] = census[re.sub("_census", "_adm", k)]
+        proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
+        proj = proj.fillna(0)
+        arrs[sim_type] = proj
     #
     output = dict(days=np.asarray(proj.day),
-                  arr=np.asarray(proj)[:, 1:],
+                  arr=np.asarray(arrs['mean'])[:, 1:],
+                  arr_stoch=np.asarray(arrs['stochastic'])[:, 1:],
                   names=proj.columns.tolist()[1:],
                   parms=p_df,
                   s=s,
