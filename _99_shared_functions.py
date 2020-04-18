@@ -137,7 +137,7 @@ def SIR_from_params(p_df):
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
     beta = float(p_df.val.loc[p_df.param == 'beta'])  # get beta directly rather than via doubling time
-    nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
+    nu = float(p_df.val.loc[p_df.param == 'nu'])
 
     reopen_day, reopen_speed = 1000, 0.0
     if 'reopen_day' in p_df.param.values:

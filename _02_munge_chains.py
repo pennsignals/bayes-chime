@@ -265,7 +265,8 @@ def main():
                  'recovery_days',
                  'logistic_k',
                  'logistic_x0',
-                 'logistic_L']]
+                 'logistic_L',
+                 'nu']]
     #toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
     pspace = np.linspace(.001, .999, 1000)
