@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import datetime
-from os import getcwd, path, mkdir
+from os import getcwd, path, makedirs
 from string import ascii_letters, digits
 import json
 import multiprocessing as mp
@@ -35,7 +35,7 @@ def get_dir_name(options):
     if path.isdir(outdir):
         dir = f"{dir}_{''.join(LET_NUMS.sample(6, replace=True))}"
         outdir = path.join(f"{getcwd()}", "output", dir)
-    mkdir(outdir)
+    makedirs(outdir)
     return outdir
 
 
@@ -272,11 +272,11 @@ def main():
         exit(1)
 
     outdir = path.join(dir, "output")
-    mkdir(outdir)
+    makedirs(outdir)
     figdir = path.join(dir, "figures")
-    mkdir(figdir)
+    makedirs(figdir)
     PARAMDIR = path.join(dir, "parameters")
-    mkdir(PARAMDIR)
+    makedirs(PARAMDIR)
 
     write_inputs(options)
 
