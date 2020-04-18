@@ -127,6 +127,23 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity,
     fig.savefig(path.join(f"{figdir}", f"{prefix}forecast_{file_howfar}_day.pdf"))
 
 
+def plt_pairplot_posteriors(df, figdir, n=1000):
+    import seaborn as sns
+
+    # Create an instance of the PairGrid class.
+    grid = sns.PairGrid(data= df.sample(n))
+
+    # Map a scatter plot to the upper triangle
+    grid = grid.map_upper(plt.scatter, alpha=0.1)
+
+    # Map a histogram to the diagonal
+    grid = grid.map_diag(plt.hist, bins = 20)
+
+    # Map a density plot to the lower triangle
+    grid = grid.map_lower(sns.kdeplot, cmap = 'Reds')
+    grid.savefig(path.join(f"{figdir}", "posterior_pairplot.pdf"))
+
+
 def mk_projection_tables(df, first_day, outdir):
     # predictive plot
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
@@ -182,6 +199,12 @@ def main():
         action="append",
     )
     p.add("-P", "--prefix", help="prefix for filenames")
+    p.add(
+        "-pp",
+        "--plot_pairs",
+        action="store_true",
+        help="Plot posterior samples in a pair-plot grid")
+
     options = p.parse_args()
 
     prefix = ''
@@ -286,6 +309,10 @@ def main():
         ax[i].legend()
     plt.tight_layout()
     fig.savefig(path.join(f'{figdir}', f'{prefix}marginal_posteriors_v2.pdf'))
+
+    if options.plot_pairs:
+        #  Make a pair plot for diagnosing posterior dependence
+        plt_pairplot_posteriors(toplot, figdir)
 
 if __name__ == '__main__':
     main()

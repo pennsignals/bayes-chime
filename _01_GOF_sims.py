@@ -187,10 +187,8 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
-        if shrinkage is None:
-            # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
-            if (ii % 1000) == 0:
-                print("chain", seed, "iter", ii)
+
+        # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
     return pd.DataFrame(outdicts)
 
 
