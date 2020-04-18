@@ -108,11 +108,11 @@ def jumper(start, jump_sd):
     return newq
 
 
-def compute_census(projection_admits_series, los):
+def compute_census(projection_admits_series, mean_los):
     """Compute Census based on exponential LOS distribution."""
     census = [0]
     for a in projection_admits_series.values:
-        c = float(a) + (1 - 1/float(los)) * census[-1]
+        c = float(a) + (1 - 1/float(mean_los)) * census[-1]
         census.append(c)
     return np.array(census[1:])
 
