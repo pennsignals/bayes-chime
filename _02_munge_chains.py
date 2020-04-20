@@ -1,4 +1,4 @@
-from os import getcwd, path
+from os import path
 import json
 
 from configargparse import ArgParser
@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from utils import DirectoryType
+
 # plot of logistic curves
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
@@ -14,16 +16,7 @@ def logistic(L, k, x0, x):
 
 # plot of chains
 def plt_predictive(
-    df,
-    first_day,
-    census_ts,
-    hosp_capacity,
-    vent_capacity,
-    figdir,
-    as_of_days_ago,
-    howfar=200,
-    y_max=None,
-    prefix="",
+    df, first_day, census_ts, figdir, as_of_days_ago, howfar=200, y_max=None, prefix="",
 ):
     # predictive plot
     file_howfar = howfar
@@ -236,7 +229,13 @@ def read_inputs(paramdir):
 def main():
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
-    p.add("-o", "--out", help="output directory")
+    p.add(
+        "-o",
+        "--out",
+        help="output directory, '-' for stdin",
+        type=DirectoryType(),
+        required=True,
+    )
     p.add(
         "-a",
         "--as_of",
@@ -271,8 +270,7 @@ def main():
         n_days = options.n_days
 
     dir = options.out
-    if not path.isdir(dir):
-        dir = path.join(f"{getcwd()}", "output", options.out)
+    print(f"Output directory: {dir}")
     paramdir = path.join(dir, "parameters")
     outdir = path.join(dir, "output")
     figdir = path.join(dir, "figures")
@@ -327,8 +325,6 @@ def main():
             df,
             first_day,
             census_ts,
-            hosp_capacity,
-            vent_capacity,
             figdir,
             as_of_days_ago,
             howfar=howfar,

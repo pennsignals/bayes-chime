@@ -1,3 +1,7 @@
+import sys
+from os import getcwd, path
+
+from configargparse import ArgumentTypeError
 from scipy.optimize import fmin
 from scipy.stats import gamma, beta
 
@@ -26,6 +30,26 @@ def beta_from_q(l, u, quantiles_percent=0.95):
     start_params = (1, 1)
     fit = fmin(loss, start_params, disp=0)
     return fit
+
+
+class DirectoryType:
+    """Factory for reading in input directories. Support unix pipes."""
+
+    def __call__(self, string):
+        # the special argument "-" means sys.stdin
+        if string == "-":
+            inp = sys.stdin.readlines()
+            return self(inp[0].strip())
+
+        # all other arguments are used as file names
+        if path.isdir(string):
+            return string
+        relative_dir = path.join(f"{getcwd()}", "output", string)
+        if path.isdir(relative_dir):
+            return relative_dir
+        args = {"filename": string}
+        message = _("can't open '%(filename)s'")
+        raise ArgumentTypeError(message % args)
 
 
 # # Usage:
