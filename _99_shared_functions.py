@@ -75,10 +75,6 @@ def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
 
 
-# y = 1-logistic(.5, .5, 10, np.arange(0, 30))
-# plt.plot(np.arange(0, 30), y)
-
-
 def qdraw(qvec, p_df):
     """
     Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
@@ -129,7 +125,6 @@ def SIR_from_params(p_df):
     """
     This function takes the output from the qdraw function
     """
-    #
     n_hosp = int(p_df.val.loc[p_df.param == "n_hosp"])
     incubation_days = float(p_df.val.loc[p_df.param == "incubation_days"])
     hosp_prop = float(p_df.val.loc[p_df.param == "hosp_prop"])
@@ -154,7 +149,6 @@ def SIR_from_params(p_df):
         reopen_day = int(p_df.val.loc[p_df.param == "reopen_day"])
     if "reopen_speed" in p_df.param.values:
         reopen_speed = float(p_df.val.loc[p_df.param == "reopen_speed"])
-    #
     alpha = 1 / incubation_days
     gamma = 1 / recovery_days
     total_infections = n_hosp / mkt_share / hosp_prop
@@ -175,7 +169,6 @@ def SIR_from_params(p_df):
         0.99, 1 / incubation_days
     )  # Enough time for 95% of exposed to become infected
     offset = int(offset)
-    #
     s, e, i, r = sim_sir(
         S=region_pop - total_infections,
         E=total_infections,
@@ -288,7 +281,6 @@ def SIR_from_params(p_df):
         proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
         proj = proj.fillna(0)
         arrs[sim_type] = proj
-    #
     output = dict(
         days=np.asarray(proj.day),
         arr=np.asarray(arrs["mean"])[:, 1:],

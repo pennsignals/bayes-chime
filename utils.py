@@ -1,6 +1,5 @@
 from scipy.optimize import fmin
 from scipy.stats import gamma, beta
-import numpy as np
 
 
 def gamma_from_q(l, u, quantiles_percent=0.95):

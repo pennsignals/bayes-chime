@@ -65,7 +65,6 @@ def plt_predictive(
         color="red",
         label="observed",
     )
-    # axx.axhline(y=hosp_capacity, color='k', ls='--', label = "hospital capacity")
     axx.axvline(
         x=dates.values[census_ts.hosp.shape[0] - as_of_days_ago],
         color="grey",
@@ -99,7 +98,6 @@ def plt_predictive(
         lw=2,
         edgecolor="k",
     )
-    # axx.axhline(y=vent_capacity, color='k', ls='--', label = "vent capacity")
     axx.plot_date(
         dates[: census_ts.vent.shape[0]],
         census_ts.vent,
@@ -296,8 +294,8 @@ def main():
     )
     print(f"READ chains file: {df.shape[0]} total iterations")
     # remove burn-in
-    # Make 1000 configurable
-    df = df.loc[(df.iter > 1000)]  # & (~df.chain.isin([1, 12]))]
+    # TODO: Make 1000 configurable
+    df = df.loc[(df.iter > 1000)]
 
     qlist = []
     for day in range(census_ts.shape[0]):
@@ -357,7 +355,6 @@ def main():
             "nu",
         ]
     ]
-    # toplot.days_until_overacpacity[toplot.days_until_overacpacity == -9999] = np.nan
 
     pspace = np.linspace(0.001, 0.999, 1000)
 
