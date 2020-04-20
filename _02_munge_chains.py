@@ -127,7 +127,7 @@ def plt_predictive(df, first_day, census_ts, hosp_capacity, vent_capacity,
     fig.savefig(path.join(f"{figdir}", f"{prefix}forecast_{file_howfar}_day.pdf"))
 
 
-def plt_pairplot_posteriors(df, figdir, n=1000):
+def plt_pairplot_posteriors(df, figdir, n=1000, prefix=''):
     import seaborn as sns
 
     # Create an instance of the PairGrid class.
@@ -141,7 +141,7 @@ def plt_pairplot_posteriors(df, figdir, n=1000):
 
     # Map a density plot to the lower triangle
     grid = grid.map_lower(sns.kdeplot, cmap = 'Reds')
-    grid.savefig(path.join(f"{figdir}", "posterior_pairplot.pdf"))
+    grid.savefig(path.join(f"{figdir}", f"{prefix}posterior_pairplot.pdf"))
 
 
 def mk_projection_tables(df, first_day, outdir):
@@ -312,7 +312,7 @@ def main():
 
     if options.plot_pairs:
         #  Make a pair plot for diagnosing posterior dependence
-        plt_pairplot_posteriors(toplot, figdir)
+        plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
 
 if __name__ == '__main__':
     main()

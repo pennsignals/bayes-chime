@@ -1,20 +1,12 @@
-
-import pandas as pd
-import os
-import numpy as np
-import matplotlib.pyplot as plt
 import re
-import copy
+import os
+
+import numpy as np
+import pandas as pd
 import scipy.stats as sps
 
 pd.options.display.max_rows = 4000
 pd.options.display.max_columns = 4000
-
-# define relative paths
-assert os.getcwd().split("/")[-1] == "chime_sims"
-datadir = f"{os.getcwd()}/data/"
-outdir = f"{os.getcwd()}/output/"
-figdir = f"{os.getcwd()}/figures/"
 
 
 def write_txt(str, path):
