@@ -22,6 +22,7 @@ PARAMS = None
 NOBS = None
 N_ITERS = None
 
+
 def get_dir_name(options):
     now = datetime.now()
     dir = now.strftime("%Y_%m_%d_%H_%M_%S")
@@ -48,8 +49,8 @@ def get_inputs(options):
         census_ts = pd.read_csv(path.join(f"{datadir}", f"{prefix}_ts.csv"))
         # impute vent with the proportion of hosp.  this is a crude hack
         census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-                                                           census_ts.vent.isna()
-                                                       ] * np.mean(census_ts.vent / census_ts.hosp)
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
         # import parameters
         params = pd.read_csv(path.join(f"{datadir}", f"{prefix}_parameters.csv"))
     if options.parameters is not None:
@@ -58,8 +59,8 @@ def get_inputs(options):
         census_ts = pd.read_csv(options.ts)
         # impute vent with the proportion of hosp.  this is a crude hack
         census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-                                                           census_ts.vent.isna()
-                                                       ] * np.mean(census_ts.vent / census_ts.hosp)
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
     return census_ts, params
 
 
@@ -71,9 +72,10 @@ def write_inputs(options):
     with open(path.join(PARAMDIR, "git.sha"), "w") as f:
         f.write(Repo(search_parent_directories=True).head.object.hexsha)
 
+
 def loglik(r):
     return -len(r) / 2 * (np.log(2 * np.pi * np.var(r))) - 1 / (
-            2 * np.pi * np.var(r)
+        2 * np.pi * np.var(r)
     ) * np.sum(r ** 2)
 
 
@@ -105,7 +107,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
     residuals_vent = None
     if train.vent.sum() > 0:
         residuals_vent = (
-                draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
+            draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
         )  # 5 corresponds with vent census
         if any(residuals_vent == 0):
             residuals_vent[residuals_vent == 0] = 0.01
@@ -114,7 +116,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
 
     # loss for hosp
     residuals_hosp = (
-            draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
+        draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
     )  # 5 corresponds with vent census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = 0.01
@@ -178,7 +180,7 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
             current_pos["draw"]["parms"].param[i]: current_pos["draw"]["parms"].val[i]
             for i in range(PARAMS.shape[0])
         }
-        #out.update({"arr": current_pos["draw"]["arr"]})
+        # out.update({"arr": current_pos["draw"]["arr"]})
         out.update({"arr": current_pos["draw"]["arr_stoch"]})
         out.update({"iter": ii})
         out.update({"chain": seed})
@@ -288,14 +290,12 @@ def main():
     CENSUS_TS["hosp_rwstd"] = np.nan
     CENSUS_TS.loc[range(NOBS), "hosp_rwstd"] = rwstd
 
-
     rwstd = []
     for i in range(NOBS):
         y = CENSUS_TS.vent[:i][-7:]
         rwstd.append(np.std(y))
     CENSUS_TS["vent_rwstd"] = np.nan
     CENSUS_TS.loc[range(NOBS), "vent_rwstd"] = rwstd
-
 
     if sample_obs:
         fig = plt.figure()
@@ -310,8 +310,6 @@ def main():
         )
         plt.title("week-long rolling variance")
         fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
-
-
 
     if fit_penalty:
         pen_vec = np.linspace(0.05, 0.95, 10)
@@ -355,9 +353,9 @@ def main():
     pool.close()
 
     df = pd.concat(chains, ignore_index=True)
-    df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient='records', lines=True)
+    df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
     print(f"Output directory: {dir}")
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()
