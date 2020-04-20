@@ -108,6 +108,15 @@ def jumper(start, jump_sd):
     return newq
 
 
+def compute_census(projection_admits_series, mean_los):
+    """Compute Census based on exponential LOS distribution."""
+    census = [0]
+    for a in projection_admits_series.values:
+        c = float(a) + (1 - 1/float(mean_los)) * census[-1]
+        census.append(c)
+    return np.array(census[1:])
+
+
 def SIR_from_params(p_df):
     '''
     This function takes the output from the qdraw function
@@ -128,7 +137,7 @@ def SIR_from_params(p_df):
     logistic_L = float(p_df.val.loc[p_df.param == 'logistic_L'])
     logistic_x0 = float(p_df.val.loc[p_df.param == 'logistic_x0'])
     beta = float(p_df.val.loc[p_df.param == 'beta'])  # get beta directly rather than via doubling time
-    nu = float(p_df.val.loc[p_df.param == 'nu']) + 1.0
+    nu = float(p_df.val.loc[p_df.param == 'nu'])
 
     reopen_day, reopen_speed = 1000, 0.0
     if 'reopen_day' in p_df.param.values:
@@ -223,9 +232,12 @@ def SIR_from_params(p_df):
 
                 #  Sample admissions as proportion of
                 #  new infections.
-                hosp = np.random.beta(ds * hosp_prop * mkt_share +1, ds * (1- hosp_prop * mkt_share)+1) * ds
-                icu = np.random.beta(hosp * ICU_prop + 1, hosp * (1-ICU_prop) + 1) * hosp
-                vent = np.random.beta(icu * vent_prop + 1, icu * (1-vent_prop) +1) * icu
+                hosp = np.random.beta(ds * hosp_prop * mkt_share + 1,
+                    ds * (1 - hosp_prop * mkt_share)+1) * ds
+                icu = np.random.beta(hosp * ICU_prop + 1,
+                    hosp * (1-ICU_prop) + 1) * hosp
+                vent = np.random.beta(icu * vent_prop + 1,
+                    icu * (1-vent_prop) +1) * icu
 
 
         # make a data frame with all the stats for plotting
@@ -248,10 +260,9 @@ def SIR_from_params(p_df):
         census_dict = {}
         for k, los in los_dict.items():
             census = (
-                    projection_admits.cumsum().iloc[:-int(los), :]
-                    - projection_admits.cumsum().shift(int(los)).fillna(0)
-            ).apply(np.ceil)
-            census_dict[k] = census[re.sub("_census", "_adm", k)]
+                compute_census(projection_admits[re.sub("_census", "_adm", k)], los)
+            )
+            census_dict[k] = census
         proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
         proj = proj.fillna(0)
         arrs[sim_type] = proj
