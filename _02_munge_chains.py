@@ -16,7 +16,16 @@ def logistic(L, k, x0, x):
 
 # plot of chains
 def plt_predictive(
-    df, first_day, census_ts, figdir, as_of_days_ago, howfar=200, y_max=None, prefix="",
+    df,
+    first_day,
+    census_ts,
+    figdir,
+    as_of_days_ago,
+    howfar=200,
+    y_max=None,
+    prefix="",
+    hosp_capacity=None,
+    vent_capacity=None,
 ):
     # predictive plot
     file_howfar = howfar
@@ -58,6 +67,8 @@ def plt_predictive(
         color="red",
         label="observed",
     )
+    if hosp_capacity:
+        axx.axhline(y=hosp_capacity, color="k", ls="--", label="hospital capacity")
     axx.axvline(
         x=dates.values[census_ts.hosp.shape[0] - as_of_days_ago],
         color="grey",
@@ -98,6 +109,8 @@ def plt_predictive(
         color="red",
         label="observed",
     )
+    if vent_capacity:
+        axx.axhline(y=vent_capacity, color="k", ls="--", label="vent capacity")
     axx.axvline(
         x=dates.values[census_ts.hosp.shape[0] - as_of_days_ago],
         color="grey",
@@ -258,6 +271,12 @@ def main():
         action="store_true",
         help="Plot posterior samples in a pair-plot grid",
     )
+    p.add(
+        "-pc",
+        "--plot_capacity",
+        action="store_true",
+        help="plot capacity as a horizontal line",
+    )
 
     options = p.parse_args()
 
@@ -283,8 +302,10 @@ def main():
     nobs = census_ts.shape[0] - as_of_days_ago
 
     # define capacity
-    vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
-    hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
+    vent_capacity, hosp_capacity = None, None
+    if options.plot_capacity:
+        vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
+        hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
     # Chains
     df = pd.read_json(
@@ -330,6 +351,8 @@ def main():
             howfar=howfar,
             prefix=prefix,
             y_max=options.y_max,
+            hosp_capacity=hosp_capacity,
+            vent_capacity=vent_capacity,
         )
 
     mk_projection_tables(df, first_day, outdir)
