@@ -46,3 +46,7 @@ Results will be saved to `output/<output_dir>/output/chains.json.bz2`, which can
 python _02_munge_chains.py -o <output_dir>
 ```
 
+If you would like to run both steps together in a pipeline you can do so using unix pipes:
+```bash
+python _01_GOF_sims.py -p data/Downtown_parameters.csv -t data/Downtown_ts.csv -o Downtown | python _02_munge_chains.py -o "-" -P Downtown
+```

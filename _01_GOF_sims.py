@@ -251,6 +251,7 @@ def main():
         help="number of days in the past to project from",
         type=int,
     )
+    p.add("-v", "--verbose", action="store_true", help="verbose output")
 
     options = p.parse_args()
 
@@ -354,7 +355,10 @@ def main():
 
     df = pd.concat(chains, ignore_index=True)
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
-    print(f"Output directory: {dir}")
+    if options.verbose:
+        print(f"Output directory: {dir}")
+    else:
+        print(dir)
 
 
 if __name__ == "__main__":
