@@ -134,8 +134,12 @@ def SIR_from_params(p_df):
     ICU_LOS = float(p_df.val.loc[p_df.param == "ICU_LOS"])
     vent_LOS = float(p_df.val.loc[p_df.param == "vent_LOS"])
     recovery_days = float(p_df.val.loc[p_df.param == "recovery_days"])
-    mkt_share = float(p_df.val.loc[p_df.param == "mkt_share"])
-    region_pop = float(p_df.val.loc[p_df.param == "region_pop"])
+
+    locs = [l.split("_")[-1] for l in p_df.param if  "mkt_share" in l]
+    mkt_share = {loc: float(p_df.val.loc[p_df.param == f"mkt_share_{loc}"]) for loc in locs}
+    region_pop = {loc: float(p_df.val.loc[p_df.param == f"region_pop_{loc}"]) for loc in locs}
+
+
     logistic_k = float(p_df.val.loc[p_df.param == "logistic_k"])
     logistic_L = float(p_df.val.loc[p_df.param == "logistic_L"])
     logistic_x0 = float(p_df.val.loc[p_df.param == "logistic_x0"])
@@ -151,146 +155,152 @@ def SIR_from_params(p_df):
         reopen_speed = float(p_df.val.loc[p_df.param == "reopen_speed"])
     alpha = 1 / incubation_days
     gamma = 1 / recovery_days
-    total_infections = n_hosp / mkt_share / hosp_prop
+    output = {}
+    for loc in locs:
+        total_infections = n_hosp / mkt_share / hosp_prop
 
-    n_days = 200
+        n_days = 200
 
-    # Offset by the incubation period to start the sim
-    # that many days before the first hospitalization
-    # Estimate the number Exposed from the number hospitalized
-    # on the first day of non-zero covid hospitalizations.
-    from scipy.stats import expon
+        # Offset by the incubation period to start the sim
+        # that many days before the first hospitalization
+        # Estimate the number Exposed from the number hospitalized
+        # on the first day of non-zero covid hospitalizations.
+        from scipy.stats import expon
 
-    # Since incubation_days is exponential in SEIR, we start
-    # the time `offset` days before the first hospitalization
-    # We determine offset by allowing enough time for the majority
-    # of the initial exposures to become infected.
-    offset = expon.ppf(
-        0.99, 1 / incubation_days
-    )  # Enough time for 95% of exposed to become infected
-    offset = int(offset)
-    s, e, i, r = sim_sir(
-        S=region_pop - total_infections,
-        E=total_infections,
-        I=0.0,  # n_infec / detection_prob,
-        R=0.0,
-        alpha=alpha,
-        beta=beta,
-        gamma=gamma,
-        nu=nu,
-        n_days=n_days + offset,
-        logistic_L=logistic_L,
-        logistic_k=logistic_k,
-        logistic_x0=logistic_x0 + offset,
-        reopen_day=reopen_day,
-        reopen_speed=reopen_speed,
-    )
+        # Since incubation_days is exponential in SEIR, we start
+        # the time `offset` days before the first hospitalization
+        # We determine offset by allowing enough time for the majority
+        # of the initial exposures to become infected.
+        offset = expon.ppf(
+            0.99, 1 / incubation_days
+        )  # Enough time for 95% of exposed to become infected
+        offset = int(offset)
 
-    arrs = {}
-    for sim_type in ["mean", "stochastic"]:
-        if sim_type == "mean":
 
-            ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
-            ds = np.array([0] + list(ds))
-            ds = ds[offset:]
+        s, e, i, r = sim_sir(
+            S=region_pop - total_infections,
+            E=total_infections,
+            I=0.0,  # n_infec / detection_prob,
+            R=0.0,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            nu=nu,
+            n_days=n_days + offset,
+            logistic_L=logistic_L,
+            logistic_k=logistic_k,
+            logistic_x0=logistic_x0 + offset,
+            reopen_day=reopen_day,
+            reopen_speed=reopen_speed,
+        )
 
-            hosp_raw = hosp_prop
-            ICU_raw = hosp_raw * ICU_prop  # coef param
-            vent_raw = ICU_raw * vent_prop  # coef param
+        arrs = {}
+        for sim_type in ["mean", "stochastic"]:
+            if sim_type == "mean":
 
-            hosp = ds * hosp_raw * mkt_share
-            icu = ds * ICU_raw * mkt_share
-            vent = ds * vent_raw * mkt_share
-        elif sim_type == "stochastic":
-            # Sampling Stochastic Observation
-
-            ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
-            ds = np.array([0] + list(ds))
-
-            #  Sample from expected new infections as
-            #  a proportion of Exposed + Succeptible
-            #  NOTE: This is still an *underaccounting* of stochastic
-            #        process which would compound over time.
-            #        This would require that the SEIR were truly stocastic.
-            stocastic_dist = "binomial"
-            if stocastic_dist == "binomial":
-                #  Discrete individuals
-                e_int = e.astype(int) + s.astype(int)
-                prob_i = pd.Series(ds / e_int).fillna(0.0)
-                prob_i = prob_i.apply(lambda x: min(x, 1.0))
-                prob_i = prob_i.apply(lambda x: max(x, 0.0))
-                ds = np.random.binomial(e_int, prob_i)
+                ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
+                ds = np.array([0] + list(ds))
                 ds = ds[offset:]
 
-                #  Sample admissions as proportion of
-                #  new infections.
-                hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
-                icu = np.random.binomial(hosp, ICU_prop)
-                vent = np.random.binomial(icu, vent_prop)
-            elif stocastic_dist == "beta":
-                #  Continuous fractions of individuals
-                e_int = e + s
-                prob_i = pd.Series(ds / e_int).fillna(0.0)
-                prob_i = prob_i.apply(lambda x: min(x, 1.0))
-                prob_i = prob_i.apply(lambda x: max(x, 0.0))
-                ds = (
-                    np.random.beta(prob_i * e_int + 1, (1 - prob_i) * e_int + 1) * e_int
-                )
-                ds = ds[offset:]
+                hosp_raw = hosp_prop
+                ICU_raw = hosp_raw * ICU_prop  # coef param
+                vent_raw = ICU_raw * vent_prop  # coef param
 
-                #  Sample admissions as proportion of
-                #  new infections.
-                hosp = (
-                    np.random.beta(
-                        ds * hosp_prop * mkt_share + 1,
-                        ds * (1 - hosp_prop * mkt_share) + 1,
+                hosp = ds * hosp_raw * mkt_share
+                icu = ds * ICU_raw * mkt_share
+                vent = ds * vent_raw * mkt_share
+            elif sim_type == "stochastic":
+                # Sampling Stochastic Observation
+
+                ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
+                ds = np.array([0] + list(ds))
+
+                #  Sample from expected new infections as
+                #  a proportion of Exposed + Succeptible
+                #  NOTE: This is still an *underaccounting* of stochastic
+                #        process which would compound over time.
+                #        This would require that the SEIR were truly stocastic.
+                stocastic_dist = "binomial"
+                if stocastic_dist == "binomial":
+                    #  Discrete individuals
+                    e_int = e.astype(int) + s.astype(int)
+                    prob_i = pd.Series(ds / e_int).fillna(0.0)
+                    prob_i = prob_i.apply(lambda x: min(x, 1.0))
+                    prob_i = prob_i.apply(lambda x: max(x, 0.0))
+                    ds = np.random.binomial(e_int, prob_i)
+                    ds = ds[offset:]
+
+                    #  Sample admissions as proportion of
+                    #  new infections.
+                    hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
+                    icu = np.random.binomial(hosp, ICU_prop)
+                    vent = np.random.binomial(icu, vent_prop)
+                elif stocastic_dist == "beta":
+                    #  Continuous fractions of individuals
+                    e_int = e + s
+                    prob_i = pd.Series(ds / e_int).fillna(0.0)
+                    prob_i = prob_i.apply(lambda x: min(x, 1.0))
+                    prob_i = prob_i.apply(lambda x: max(x, 0.0))
+                    ds = (
+                        np.random.beta(prob_i * e_int + 1, (1 - prob_i) * e_int + 1) * e_int
                     )
-                    * ds
-                )
-                icu = (
-                    np.random.beta(hosp * ICU_prop + 1, hosp * (1 - ICU_prop) + 1)
-                    * hosp
-                )
-                vent = (
-                    np.random.beta(icu * vent_prop + 1, icu * (1 - vent_prop) + 1) * icu
-                )
+                    ds = ds[offset:]
 
-        # make a data frame with all the stats for plotting
-        days = np.array(range(0, n_days + 1))
-        data_list = [days, hosp, icu, vent]
-        data_dict = dict(zip(["day", "hosp_adm", "icu_adm", "vent_adm"], data_list))
-        projection = pd.DataFrame.from_dict(data_dict)
-        projection_admits = projection
-        projection_admits["day"] = range(projection_admits.shape[0])
-        # census df
-        hosp_LOS_raw = hosp_LOS
-        ICU_LOS_raw = ICU_LOS
-        vent_LOS_raw = vent_LOS
+                    #  Sample admissions as proportion of
+                    #  new infections.
+                    hosp = (
+                        np.random.beta(
+                            ds * hosp_prop * mkt_share + 1,
+                            ds * (1 - hosp_prop * mkt_share) + 1,
+                        )
+                        * ds
+                    )
+                    icu = (
+                        np.random.beta(hosp * ICU_prop + 1, hosp * (1 - ICU_prop) + 1)
+                        * hosp
+                    )
+                    vent = (
+                        np.random.beta(icu * vent_prop + 1, icu * (1 - vent_prop) + 1) * icu
+                    )
 
-        los_dict = {
-            "hosp_census": hosp_LOS_raw,
-            "icu_census": ICU_LOS_raw,
-            "vent_census": vent_LOS_raw,
-        }
-        census_dict = {}
-        for k, los in los_dict.items():
-            census = compute_census(
-                projection_admits[re.sub("_census", "_adm", k)], los
-            )
-            census_dict[k] = census
-        proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
-        proj = proj.fillna(0)
-        arrs[sim_type] = proj
-    output = dict(
-        days=np.asarray(proj.day),
-        arr=np.asarray(arrs["mean"])[:, 1:],
-        arr_stoch=np.asarray(arrs["stochastic"])[:, 1:],
-        names=proj.columns.tolist()[1:],
-        parms=p_df,
-        s=s,
-        e=e,
-        i=i,
-        r=r,
-        offset=offset,
-    )
+            # make a data frame with all the stats for plotting
+            days = np.array(range(0, n_days + 1))
+            data_list = [days, hosp, icu, vent]
+            data_dict = dict(zip(["day", "hosp_adm", "icu_adm", "vent_adm"], data_list))
+            projection = pd.DataFrame.from_dict(data_dict)
+            projection_admits = projection
+            projection_admits["day"] = range(projection_admits.shape[0])
+            # census df
+            hosp_LOS_raw = hosp_LOS
+            ICU_LOS_raw = ICU_LOS
+            vent_LOS_raw = vent_LOS
+
+            los_dict = {
+                "hosp_census": hosp_LOS_raw,
+                "icu_census": ICU_LOS_raw,
+                "vent_census": vent_LOS_raw,
+            }
+            census_dict = {}
+            for k, los in los_dict.items():
+                census = compute_census(
+                    projection_admits[re.sub("_census", "_adm", k)], los
+                )
+                census_dict[k] = census
+            proj = pd.concat([projection_admits, pd.DataFrame(census_dict)], axis=1)
+            proj = proj.fillna(0)
+            arrs[sim_type] = proj
+
+        output[loc] = dict(
+            days=np.asarray(proj.day),
+            arr=np.asarray(arrs["mean"])[:, 1:],
+            arr_stoch=np.asarray(arrs["stochastic"])[:, 1:],
+            names=proj.columns.tolist()[1:],
+            parms=p_df,
+            s=s,
+            e=e,
+            i=i,
+            r=r,
+            offset=offset,
+        )
+
     return output

@@ -56,18 +56,28 @@ def get_inputs(options):
     if options.parameters is not None:
         params = pd.read_csv(options.parameters)
     if options.ts is not None:
-        census_ts = pd.read_csv(options.ts)
-        # impute vent with the proportion of hosp.  this is a crude hack
-        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-            census_ts.vent.isna()
-        ] * np.mean(census_ts.vent / census_ts.hosp)
+        census_ts_dict = {}
+        for ts_file in options.ts:
+            census_ts = pd.read_csv(ts_file)
+            # impute vent with the proportion of hosp.  this is a crude hack
+            census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+                census_ts.vent.isna()
+            ] * np.mean(census_ts.vent / census_ts.hosp)
+            loc = path.split(ts_file)[-1].split("_")[0] 
+            census_ts_dict[loc] = census_ts
+        census_ts = census_ts_dict
     return census_ts, params
 
 
 def write_inputs(options):
     with open(path.join(PARAMDIR, "args.json"), "w") as f:
         json.dump(options.__dict__, f)
-    CENSUS_TS.to_csv(path.join(PARAMDIR, "census_ts.csv"), index=False)
+    if isinstance(CENSUS_TS,dict):
+        for loc,df in CENSUS_TS.items():
+            df.to_csv(path.join(PARAMDIR, f"{loc}_census_ts.csv"), index=False)
+    else:
+        CENSUS_TS.to_csv(path.join(PARAMDIR, "census_ts.csv"), index=False)
+
     PARAMS.to_csv(path.join(PARAMDIR, "params.csv"), index=False)
     with open(path.join(PARAMDIR, "git.sha"), "w") as f:
         f.write(Repo(search_parent_directories=True).head.object.hexsha)
@@ -87,41 +97,44 @@ def do_shrinkage(pos, shrinkage):
 
 def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
-    draw = SIR_from_params(qdraw(pos, PARAMS))
-    obs = deepcopy(CENSUS_TS)
-    if sample_obs:
-        ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
-        ynoise_h[0] = 0
-        obs.hosp += ynoise_h
-        ynoise_v = np.random.normal(scale=obs.vent_rwstd)
-        ynoise_v[0] = 0
-        obs.vent += ynoise_v
-    if holdout > 0:
-        train = obs[:-holdout]
-        test = obs[-holdout:]
-    else:
-        train = obs
+    draw_dict = SIR_from_params(qdraw(pos, PARAMS))
+    locs = [l.split("_")[-1] for l in PARAMS.param if  "mkt_share" in l]
 
-    # loss for vent
     LL = 0
-    residuals_vent = None
-    if train.vent.sum() > 0:
-        residuals_vent = (
-            draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
-        )  # 5 corresponds with vent census
-        if any(residuals_vent == 0):
-            residuals_vent[residuals_vent == 0] = 0.01
-        sigma2 = np.var(residuals_vent)
-        LL += loglik(residuals_vent)
+    for loc in locs:
+        obs = deepcopy(CENSUS_TS[loc])
+        draw = draw_dict[loc]
+        if sample_obs:
+            ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
+            ynoise_h[0] = 0
+            obs.hosp += ynoise_h
+            ynoise_v = np.random.normal(scale=obs.vent_rwstd)
+            ynoise_v[0] = 0
+            obs.vent += ynoise_v
+        if holdout > 0:
+            train = obs[:-holdout]
+            test = obs[-holdout:]
+        else:
+            train = obs
 
-    # loss for hosp
-    residuals_hosp = (
-        draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
-    )  # 5 corresponds with vent census
-    if any(residuals_hosp == 0):
-        residuals_hosp[residuals_hosp == 0] = 0.01
-    sigma2 = np.var(residuals_hosp)
-    LL += loglik(residuals_hosp)
+        residuals_vent = None
+        if train.vent.sum() > 0:
+            residuals_vent = (
+                draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
+            )  # 5 corresponds with vent census
+            if any(residuals_vent == 0):
+                residuals_vent[residuals_vent == 0] = 0.01
+            sigma2 = np.var(residuals_vent)
+            LL += loglik(residuals_vent)
+
+        # loss for hosp
+        residuals_hosp = (
+            draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
+        )  # 5 corresponds with vent census
+        if any(residuals_hosp == 0):
+            residuals_hosp[residuals_hosp == 0] = 0.01
+        sigma2 = np.var(residuals_hosp)
+        LL += loglik(residuals_hosp)
 
     Lprior = np.log(draw["parms"].prob).sum()
     posterior = LL + Lprior
@@ -216,7 +229,9 @@ def main():
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
     p.add("-P", "--prefix", help="prefix for old-style inputs")
     p.add("-p", "--parameters", help="the path to the parameters csv")
-    p.add("-t", "--ts", help="the path to the time-series csv")
+    p.add("-t", "--ts",
+        help="the path to the time-series csv",
+        nargs='+')
     p.add("-C", "--n_chains", help="number of chains to run", default=8, type=int)
     p.add(
         "-i",
@@ -281,70 +296,70 @@ def main():
 
     write_inputs(options)
 
-    NOBS = CENSUS_TS.shape[0] - as_of_days_ago
+    # NOBS = CENSUS_TS.shape[0] - as_of_days_ago
 
-    # rolling window variance
-    rwstd = []
-    for i in range(NOBS):
-        y = CENSUS_TS.hosp[:i][-7:]
-        rwstd.append(np.std(y))
-    CENSUS_TS["hosp_rwstd"] = np.nan
-    CENSUS_TS.loc[range(NOBS), "hosp_rwstd"] = rwstd
+    # # rolling window variance
+    # rwstd = []
+    # for i in range(NOBS):
+    #     y = CENSUS_TS.hosp[:i][-7:]
+    #     rwstd.append(np.std(y))
+    # CENSUS_TS["hosp_rwstd"] = np.nan
+    # CENSUS_TS.loc[range(NOBS), "hosp_rwstd"] = rwstd
 
-    rwstd = []
-    for i in range(NOBS):
-        y = CENSUS_TS.vent[:i][-7:]
-        rwstd.append(np.std(y))
-    CENSUS_TS["vent_rwstd"] = np.nan
-    CENSUS_TS.loc[range(NOBS), "vent_rwstd"] = rwstd
+    # rwstd = []
+    # for i in range(NOBS):
+    #     y = CENSUS_TS.vent[:i][-7:]
+    #     rwstd.append(np.std(y))
+    # CENSUS_TS["vent_rwstd"] = np.nan
+    # CENSUS_TS.loc[range(NOBS), "vent_rwstd"] = rwstd
 
-    if sample_obs:
-        fig = plt.figure()
-        plt.plot(CENSUS_TS.vent, color="red")
-        plt.fill_between(
-            x=list(range(NOBS)),
-            y1=CENSUS_TS.vent + 2 * CENSUS_TS.vent_rwstd,
-            y2=CENSUS_TS.vent - 2 * CENSUS_TS.vent_rwstd,
-            alpha=0.3,
-            lw=2,
-            edgecolor="k",
-        )
-        plt.title("week-long rolling variance")
-        fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
+    # if sample_obs:
+    #     fig = plt.figure()
+    #     plt.plot(CENSUS_TS.vent, color="red")
+    #     plt.fill_between(
+    #         x=list(range(NOBS)),
+    #         y1=CENSUS_TS.vent + 2 * CENSUS_TS.vent_rwstd,
+    #         y2=CENSUS_TS.vent - 2 * CENSUS_TS.vent_rwstd,
+    #         alpha=0.3,
+    #         lw=2,
+    #         edgecolor="k",
+    #     )
+    #     plt.title("week-long rolling variance")
+    #     fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
 
-    if fit_penalty:
-        pen_vec = np.linspace(0.05, 0.95, 10)
-        tuples_for_starmap = [(i, 7, j) for i in range(n_chains) for j in pen_vec]
-        pool = mp.Pool(mp.cpu_count())
-        shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
-        pool.close()
-        # put together the mp results
-        chain_dict = {i: [] for i in pen_vec}
-        for i in range(len(tuples_for_starmap)):
-            chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][
-                1000:
-            ].tolist()  # get the penalty value
+    # if fit_penalty:
+    #     pen_vec = np.linspace(0.05, 0.95, 10)
+    #     tuples_for_starmap = [(i, 7, j) for i in range(n_chains) for j in pen_vec]
+    #     pool = mp.Pool(mp.cpu_count())
+    #     shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
+    #     pool.close()
+    #     # put together the mp results
+    #     chain_dict = {i: [] for i in pen_vec}
+    #     for i in range(len(tuples_for_starmap)):
+    #         chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][
+    #             1000:
+    #         ].tolist()  # get the penalty value
 
-        mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
+    #     mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
 
-        fig = plt.figure()
-        plt.plot(pen_vec, mean_test_loss)
-        plt.fill_between(
-            x=pen_vec,
-            y1=[float(np.quantile(chain_dict[i][1000:], [0.025])) for i in pen_vec],
-            y2=[float(np.quantile(chain_dict[i][1000:], [0.975])) for i in pen_vec],
-            alpha=0.3,
-            lw=2,
-            edgecolor="k",
-        )
-        plt.xlabel("penalty factor")
-        plt.ylabel("test MSE")
-        fig.savefig(path.join(f"{figdir}", f"shrinkage_grid_GOF.pdf"))
+    #     fig = plt.figure()
+    #     plt.plot(pen_vec, mean_test_loss)
+    #     plt.fill_between(
+    #         x=pen_vec,
+    #         y1=[float(np.quantile(chain_dict[i][1000:], [0.025])) for i in pen_vec],
+    #         y2=[float(np.quantile(chain_dict[i][1000:], [0.975])) for i in pen_vec],
+    #         alpha=0.3,
+    #         lw=2,
+    #         edgecolor="k",
+    #     )
+    #     plt.xlabel("penalty factor")
+    #     plt.ylabel("test MSE")
+    #     fig.savefig(path.join(f"{figdir}", f"shrinkage_grid_GOF.pdf"))
 
-        # identify the best penalty
-        best_penalty = pen_vec[np.argmin(mean_test_loss)]
-    elif penalty < 1:
-        best_penalty = penalty
+    #     # identify the best penalty
+    #     best_penalty = pen_vec[np.argmin(mean_test_loss)]
+    # elif penalty < 1:
+    best_penalty = penalty
 
     tuples_for_starmap = [(i, best_penalty, 0, sample_obs) for i in range(n_chains)]
 
