@@ -61,6 +61,12 @@ def get_inputs(options):
         census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
             census_ts.vent.isna()
         ] * np.mean(census_ts.vent / census_ts.hosp)
+    if options.window_size is not None:
+        census_ts.to_csv(path.join(PARAMDIR, "orig_census_ts.csv"), index=False)
+        date = census_ts["date"]
+        census_ts = census_ts.rolling(window=options.window_size, min_periods=1).mean()
+        census_ts["date"] = date
+        census_ts = census_ts[["date", "hosp", "vent", "mort"]]
     return census_ts, params
 
 
@@ -252,6 +258,13 @@ def main():
         type=int,
     )
     p.add("-v", "--verbose", action="store_true", help="verbose output")
+    p.add(
+        "-w",
+        "--window_size",
+        default=None,
+        type=int,
+        help="window size on ts (rolling mean)",
+    )
 
     options = p.parse_args()
 
@@ -266,18 +279,18 @@ def main():
     if not fit_penalty:
         assert penalty >= 0.05 and penalty < 1
 
-    CENSUS_TS, PARAMS = get_inputs(options)
-    if CENSUS_TS is None or PARAMS is None:
-        print("You must specify either --prefix or --parameters and --ts")
-        print(p.format_help())
-        exit(1)
-
     outdir = path.join(dir, "output")
     makedirs(outdir)
     figdir = path.join(dir, "figures")
     makedirs(figdir)
     PARAMDIR = path.join(dir, "parameters")
     makedirs(PARAMDIR)
+
+    CENSUS_TS, PARAMS = get_inputs(options)
+    if CENSUS_TS is None or PARAMS is None:
+        print("You must specify either --prefix or --parameters and --ts")
+        print(p.format_help())
+        exit(1)
 
     write_inputs(options)
 

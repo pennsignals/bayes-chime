@@ -19,6 +19,7 @@ def plt_predictive(
     df,
     first_day,
     census_ts,
+    orig_census_ts,
     figdir,
     as_of_days_ago,
     howfar=200,
@@ -60,13 +61,30 @@ def plt_predictive(
         lw=2,
         edgecolor="k",
     )
-    axx.plot_date(
-        dates[: census_ts.hosp.shape[0]],
-        census_ts.hosp,
-        "-",
-        color="red",
-        label="observed",
-    )
+    if orig_census_ts is None:
+        axx.plot_date(
+            dates[: census_ts.hosp.shape[0]],
+            census_ts.hosp,
+            "-",
+            color="red",
+            label="observed",
+        )
+    else:
+        axx.plot_date(
+            dates[: census_ts.hosp.shape[0]],
+            census_ts.hosp,
+            "-",
+            color="red",
+            label="observed (moving average)",
+        )
+        axx.plot_date(
+            dates[: orig_census_ts.hosp.shape[0]],
+            orig_census_ts.hosp,
+            ".",
+            color="black",
+            label="observed",
+            alpha=0.7,
+        )
     if hosp_capacity:
         axx.axhline(y=hosp_capacity, color="k", ls="--", label="hospital capacity")
     axx.axvline(
@@ -102,13 +120,30 @@ def plt_predictive(
         lw=2,
         edgecolor="k",
     )
-    axx.plot_date(
-        dates[: census_ts.vent.shape[0]],
-        census_ts.vent,
-        "-",
-        color="red",
-        label="observed",
-    )
+    if orig_census_ts is None:
+        axx.plot_date(
+            dates[: census_ts.vent.shape[0]],
+            census_ts.vent,
+            "-",
+            color="red",
+            label="observed",
+        )
+    else:
+        axx.plot_date(
+            dates[: census_ts.vent.shape[0]],
+            census_ts.vent,
+            "-",
+            color="red",
+            label="observed (moving average)",
+        )
+        axx.plot_date(
+            dates[: orig_census_ts.vent.shape[0]],
+            orig_census_ts.vent,
+            ".",
+            color="black",
+            label="observed",
+            alpha=0.7,
+        )
     if vent_capacity:
         axx.axhline(y=vent_capacity, color="k", ls="--", label="vent capacity")
     axx.axvline(
@@ -236,7 +271,10 @@ def read_inputs(paramdir):
         args = json.load(f)
     census_ts = pd.read_csv(path.join(paramdir, "census_ts.csv"))
     params = pd.read_csv(path.join(paramdir, "params.csv"))
-    return census_ts, params, args
+    orig_census_ts = None
+    if path.isfile(path.join(paramdir, "orig_census_ts.csv")):
+        orig_census_ts = pd.read_csv(path.join(paramdir, "orig_census_ts.csv"))
+    return orig_census_ts, census_ts, params, args
 
 
 def main():
@@ -294,7 +332,7 @@ def main():
     outdir = path.join(dir, "output")
     figdir = path.join(dir, "figures")
 
-    census_ts, params, args = read_inputs(paramdir)
+    orig_census_ts, census_ts, params, args = read_inputs(paramdir)
     first_day = census_ts["date"].values[0]
 
     # TODO: This needs to be configurable based on the time period specificed
@@ -346,6 +384,7 @@ def main():
             df,
             first_day,
             census_ts,
+            orig_census_ts,
             figdir,
             as_of_days_ago,
             howfar=howfar,
