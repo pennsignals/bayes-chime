@@ -157,7 +157,7 @@ def SIR_from_params(p_df):
     gamma = 1 / recovery_days
     output = {}
     for loc in locs:
-        total_infections = n_hosp / mkt_share / hosp_prop
+        total_infections = n_hosp / mkt_share[loc] / hosp_prop
 
         n_days = 200
 
@@ -178,7 +178,7 @@ def SIR_from_params(p_df):
 
 
         s, e, i, r = sim_sir(
-            S=region_pop - total_infections,
+            S=region_pop[loc] - total_infections,
             E=total_infections,
             I=0.0,  # n_infec / detection_prob,
             R=0.0,
@@ -206,9 +206,9 @@ def SIR_from_params(p_df):
                 ICU_raw = hosp_raw * ICU_prop  # coef param
                 vent_raw = ICU_raw * vent_prop  # coef param
 
-                hosp = ds * hosp_raw * mkt_share
-                icu = ds * ICU_raw * mkt_share
-                vent = ds * vent_raw * mkt_share
+                hosp = ds * hosp_raw * mkt_share[loc]
+                icu = ds * ICU_raw * mkt_share[loc]
+                vent = ds * vent_raw * mkt_share[loc]
             elif sim_type == "stochastic":
                 # Sampling Stochastic Observation
 
@@ -232,7 +232,7 @@ def SIR_from_params(p_df):
 
                     #  Sample admissions as proportion of
                     #  new infections.
-                    hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share)
+                    hosp = np.random.binomial(ds.astype(int), hosp_prop * mkt_share[loc])
                     icu = np.random.binomial(hosp, ICU_prop)
                     vent = np.random.binomial(icu, vent_prop)
                 elif stocastic_dist == "beta":
@@ -250,8 +250,8 @@ def SIR_from_params(p_df):
                     #  new infections.
                     hosp = (
                         np.random.beta(
-                            ds * hosp_prop * mkt_share + 1,
-                            ds * (1 - hosp_prop * mkt_share) + 1,
+                            ds * hosp_prop * mkt_share[loc] + 1,
+                            ds * (1 - hosp_prop * mkt_share[loc]) + 1,
                         )
                         * ds
                     )

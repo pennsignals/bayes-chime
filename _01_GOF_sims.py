@@ -103,6 +103,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
     LL = 0
     for loc in locs:
         obs = deepcopy(CENSUS_TS[loc])
+        NOBS = obs.shape[0]
         draw = draw_dict[loc]
         if sample_obs:
             ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
@@ -146,7 +147,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
 
     out = dict(
         pos=pos,
-        draw=draw,
+        draw=draw_dict,
         posterior=posterior,
         residuals_vent=residuals_vent,
         residuals_hosp=residuals_hosp,
@@ -188,17 +189,22 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
 
         except Exception as e:
             print(e)
+        locs = [l.split("_")[-1] for l in PARAMS.param if  "mkt_share" in l]
         # append the relevant results
         out = {
-            current_pos["draw"]["parms"].param[i]: current_pos["draw"]["parms"].val[i]
+            current_pos["draw"][locs[0]]["parms"].param[i]: current_pos["draw"][locs[0]]["parms"].val[i]
             for i in range(PARAMS.shape[0])
         }
         # out.update({"arr": current_pos["draw"]["arr"]})
-        out.update({"arr": current_pos["draw"]["arr_stoch"]})
+        
+        for loc in locs:
+            out.update({f"arr_{loc}": current_pos["draw"][loc]["arr_stoch"]})
+            out.update({f"offset_{loc}": current_pos["draw"][loc]["offset"]})
+
         out.update({"iter": ii})
         out.update({"chain": seed})
         out.update({"posterior": proposed_pos["posterior"]})
-        out.update({"offset": current_pos["draw"]["offset"]})
+        
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
