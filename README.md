@@ -50,3 +50,43 @@ If you would like to run both steps together in a pipeline you can do so using u
 ```bash
 python _01_GOF_sims.py -p data/Downtown_parameters.csv -t data/Downtown_ts.csv -o Downtown | python _02_munge_chains.py -o "-" -P Downtown
 ```
+
+# Docker
+For anyone struggling with getting these python scripts running on their own
+machine, we've provided a Dockerfile to help you along with the process.
+This requires that you setup Docker on your machine. For Mac and Windows
+you'll need [Docker Desktop](https://www.docker.com/products/docker-desktop).
+On linux you can
+[use your package manager](https://runnable.com/docker/install-docker-on-linux)
+to install Docker.
+
+## The easy way
+The easy way to get things going is through `docker-compose`
+### Build the container
+`docker-compose build`
+### Run the container
+`docker-compose up`
+
+By default this will use the CCH files in the `data` directory.
+If you'd like to run this with a different set of input files you can override
+this using the `$LOC` environment variable. This can be done one of two ways
+1. `export LOC=NewLoc`
+2. Modify the `.env` file
+
+The `LOC` env variable will be passed to `full_pipe.sh`. If you need to modify
+what is passed to the scripts you can modify `full_pipe.sh` accordingly
+
+## The more flexible way
+The more flexible way to run the app in Docker is using the `docker` command
+### Build the container
+`docker build -t chime_sims .`
+### Run the container
+``docker run -it --rm -v `pwd`:/chime_sims chime_sims /bin/bash``
+
+*Note: You may have to replace `` `pwd` `` with the path to the chime_sims
+directory.*
+### Run the scripts
+Once the container starts you should be put into a bash shell where you can
+then run scripts as described above. For example:
+
+`python _01_GOF_sims.py -p data/Downtown_parameters.csv -t data/Downtown_ts.csv -o Downtown | python _02_munge_chains.py -o "-" -P Downtown`

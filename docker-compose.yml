@@ -1,0 +1,8 @@
+version: "3.7"
+services:
+  chime_sims:
+    build: .
+    volumes:
+    - .:/chime_sims:rw
+    working_dir: /chime_sims
+    entrypoint: bash full_pipe.sh ${LOC}
