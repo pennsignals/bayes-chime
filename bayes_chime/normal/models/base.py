@@ -5,7 +5,7 @@ from typing import Dict, Generator, List, Callable
 from abc import ABC, abstractmethod
 
 from numpy import arange
-from pandas import DataFrame
+from pandas import DataFrame, DatetimeIndex, infer_freq
 
 from bayes_chime.normal.utilities import (
     FloatLike,
@@ -22,12 +22,65 @@ class CompartmentModel(ABC):
         model_parameters: A list of all parameters needed to run a simmulation
             (used by `simulation_step` or `post_process_simulation`).
             These parameters must be present after `parse_input` is run.
+        optional_parameters: Further parameters which extend model predictions but
+            are not required. E.g., to do conversions between parameters.
         compartments: These are the compartments needed by the model.
             E.g., susceptible, infected and recovered for standard SIR.
     """
 
-    model_parameters: List[str] = []
+    # ----------------------------------------
+    # Below you can find methods to overload
+    # ----------------------------------------
+
+    model_parameters: List[str] = ["dates"]
+    optional_parameters: List[str] = []
     compartments: List[str] = []
+
+    def parse_input(  # pylint: disable=R0201
+        self, **pars: Dict[str, FloatOrDistVar]
+    ) -> Dict[str, FloatOrDistVar]:
+        """Parses parameters before fitting. This should include, e.g., type conversions
+
+        By default, checks dates and adds frequency.
+        """
+        dates = pars["dates"]
+        if not isinstance(dates, DatetimeIndex):
+            raise TypeError("Dates must be of type DatetimeIndex")
+
+        freq = dates.freq or infer_freq(dates)
+        if "freq" not in pars:
+            pars["freq"] = freq
+        elif pars["freq"] != freq:
+            raise ValueError("Specified frequency does not match dates.")
+
+        return pars
+
+    def post_process_simulation(  # pylint: disable=R0201, W0613, C0103
+        self, df: DataFrame, **pars: Dict[str, FloatOrDistVar]
+    ) -> DataFrame:
+        """Processes the final simulation result. This can add, e.g., new columns
+        """
+        return df
+
+    @abstractmethod
+    def simulation_step(
+        self, data: Dict[str, NormalDistVar], **pars: Dict[str, FloatOrDistVar]
+    ):
+        """This function implements the actual simulation
+
+        Arguments:
+            data: The compartments for each iteration
+            pars: Model parameters
+
+        Returns:
+            Updated compartments and optionally additional information like change
+            from last iteration.
+        """
+        return data
+
+    # ----------------------------------------------------------
+    # This part should be fixed unless you add functionality
+    # ----------------------------------------------------------
 
     def __init__(
         self,
@@ -73,23 +126,12 @@ class CompartmentModel(ABC):
         """
         pars = self.parse_input(**meta_pars, **dist_pars)
 
-        df = DataFrame(data=self._iterate_simulation(**pars), index=pars["dates"])
+        df = DataFrame(
+            data=self._iterate_simulation(len(pars["dates"]), **pars),
+            index=pars["dates"],
+        )
 
         return self.post_process_simulation(df, **pars)
-
-    def parse_input(  # pylint: disable=R0201
-        self, **pars: Dict[str, FloatOrDistVar]
-    ) -> Dict[str, FloatOrDistVar]:
-        """Parses parameters before fitting. This should include, e.g., type conversions
-        """
-        return pars
-
-    def post_process_simulation(  # pylint: disable=R0201, W0613, C0103
-        self, df: DataFrame, **pars: Dict[str, FloatOrDistVar]
-    ) -> DataFrame:
-        """Processes the final simulation result. This can add, e.g., new columns
-        """
-        return df
 
     def _iterate_simulation(
         self, n_iter: int, **pars: Dict[str, FloatOrDistVar],
@@ -102,26 +144,14 @@ class CompartmentModel(ABC):
             n_iter: Number of iterations
             pars: Model meta and flexible parameters
         """
+        data = {
+            compartment: pars["initial_{compartment}".format(compartment=compartment)]
+            for compartment in self.compartments
+        }
         for nn in arange(n_iter):
             yield data
             inp_pars = self.update_parameters(nn, **pars)
             data = self.simulation_step(data, **inp_pars)
-
-    @abstractmethod
-    def simulation_step(
-        self, data: Dict[str, NormalDistVar], **pars: Dict[str, FloatOrDistVar]
-    ):
-        """This function implements the actual simulation
-
-        Arguments:
-            data: The compartments for each iteration
-            pars: Model parameters
-
-        Returns:
-            Updated compartments and optionally additional information like change
-            from last iteration.
-        """
-        return data
 
     def fit_fcn(  # pylint: disable=C0103
         self, xx: Dict[str, FloatLike], pp: Dict[str, NormalDistVar]
