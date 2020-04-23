@@ -168,7 +168,8 @@ class CompartmentModel(ABC):
         df = self.propagate_uncertainties(xx, pp).drop(0)
         if self.fit_columns:
             df = df[self.fit_columns]
-        return df.values
+
+        return df.values if df.values.shape[0] > 1 else df.values.flatten()
 
     def check_call(  # pylint: disable=C0103
         self,
