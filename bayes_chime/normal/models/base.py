@@ -103,7 +103,8 @@ class CompartmentModel(ABC):
                 implement social distancing.
 
         Note:
-            The update_parameters method should not update parameters in place.
+            If the update_parameters method requires additional arguments, they must be
+            passed to the respective model function calls.
         """
         self.fit_columns = fit_columns
         self.update_parameters = (
@@ -127,14 +128,13 @@ class CompartmentModel(ABC):
         pars = self.parse_input(**meta_pars, **dist_pars)
 
         df = DataFrame(
-            data=self._iterate_simulation(len(pars["dates"]), **pars),
-            index=pars["dates"],
-        )
+            data=self._iterate_simulation(len(pars["dates"]), **pars)
+        ).set_index("dates")
 
         return self.post_process_simulation(df, **pars)
 
     def _iterate_simulation(
-        self, n_iter: int, **pars: Dict[str, FloatOrDistVar],
+        self, **pars: Dict[str, FloatOrDistVar],
     ) -> Generator[Dict[str, NormalDistVar]]:
         """Iterates model to build up SIR data
 
@@ -148,9 +148,10 @@ class CompartmentModel(ABC):
             compartment: pars["initial_{compartment}".format(compartment=compartment)]
             for compartment in self.compartments
         }
-        for nn in arange(n_iter):
+        for date in pars["dates"]:
+            data["date"] = date
             yield data
-            inp_pars = self.update_parameters(nn, **pars)
+            inp_pars = self.update_parameters(date, **pars)
             data = self.simulation_step(data, **inp_pars)
 
     def fit_fcn(  # pylint: disable=C0103
