@@ -22,6 +22,7 @@ from penn_chime.model.sir import (
 )
 
 from bayes_chime.normal.models import SIRModel
+from bayes_chime.normal.utilities import one_minus_logistic_fcn
 
 COLS_TO_COMPARE = [
     "susceptible",
@@ -178,12 +179,8 @@ def test_sir_vs_penn_chime_w_policies(penn_chime_setup, sir_data_w_policy):
     new_policy_date = x["dates"][0] + timedelta(days=policies[0][1])
     beta0, beta1 = policies[0][0], policies[1][0]
 
-    n_total = 0
-    for key in SIRModel.compartments:
-        n_total += pars[f"initial_{key}"]
-
     def update_parameters(ddate, **pars):  # pylint: disable=W0613
-        pars["beta"] = (beta0 if ddate < new_policy_date else beta1) * n_total
+        pars["beta"] = (beta0 if ddate < new_policy_date else beta1) * p.population
         return pars
 
     sir_model = SIRModel(update_parameters=update_parameters)
@@ -197,25 +194,36 @@ def test_sir_vs_penn_chime_w_policies(penn_chime_setup, sir_data_w_policy):
     )
 
 
-#
-# def test_sir_logistic_policy(penn_chime_setup, sir_data_w_policy):
-#     """Compares local SIR against penn_chime SIR for with social policies
-#     where social distancing policies are no implemented as a logistic function
-#     """
-#     p, sir = penn_chime_setup
-#     x, pars = sir_data_w_policy
-#
-#     policies = sir.gen_policy(p)
-#
-#     # Set up logistic function to match policies (Sharp decay)
-#     pars["beta_i"] = policies[0][0] * p.population
-#     pars["ratio"] = 1 - policies[1][0] / policies[0][0]
-#     pars["x0"] = policies[0][1] - 0.5
-#     pars["decay_width"] = 1.0e7
-#
-#     f = FitFcn(sir_step, beta_i_fcn=one_minus_logistic_fcn)
-#     y = f(x, pars)
-#
-#     assert_frame_equal(
-#         sir.raw_df.rename(columns=COLUMN_MAP)[COLS_TO_COMPARE], y[COLS_TO_COMPARE],
-#     )
+def test_sir_logistic_policy(penn_chime_setup, sir_data_w_policy):
+    """Compares local SIR against penn_chime SIR for implemented social policies
+    where policies are implemented as a logistic function
+    """
+    p, sir = penn_chime_setup
+    x, pars = sir_data_w_policy
+
+    policies = sir.gen_policy(p)
+
+    # Set up logistic function to match policies (Sharp decay)
+    pars["beta"] = policies[0][0] * p.population
+    ## This are new parameters needed by one_minus_logistic_fcn
+    pars["L"] = 1 - policies[1][0] / policies[0][0]
+    pars["x0"] = policies[0][1] - 0.5
+    pars["k"] = 1.0e7
+
+    def update_parameters(ddate, **kwargs):
+        xx = (ddate - x["dates"][0]).days
+        ppars = kwargs.copy()
+        ppars["beta"] = kwargs["beta"] * one_minus_logistic_fcn(
+            xx, L=kwargs["L"], k=kwargs["k"], x0=kwargs["x0"],
+        )
+        return ppars
+
+    sir_model = SIRModel(update_parameters=update_parameters)
+    predictions = sir_model.propagate_uncertainties(x, pars)
+
+    assert_frame_equal(
+        sir.raw_df.set_index("date")
+        .rename(columns=COLUMN_MAP)[COLS_TO_COMPARE]
+        .fillna(0),
+        predictions[COLS_TO_COMPARE],
+    )
