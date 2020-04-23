@@ -22,6 +22,8 @@ COLS_TO_COMPARE = [
     # Does not compare census as this repo uses the exponential distribution
 ]
 
+PENN_CHIME_COMMIT = "188c35be9561164bedded4a8071a320cbde0d2bc"
+
 
 @fixture(name="seir_data")
 def fixture_seir_data(sir_data_wo_policy):

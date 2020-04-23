@@ -23,6 +23,8 @@ from penn_chime.model.sir import (
 from bayes_chime.normal.models import SIRModel
 from bayes_chime.normal.utilities import one_minus_logistic_fcn
 
+PENN_CHIME_COMMIT = "188c35be9561164bedded4a8071a320cbde0d2bc"
+
 COLS_TO_COMPARE = [
     "susceptible",
     "infected",
