@@ -86,7 +86,6 @@ The more flexible way to run the app in Docker is using the `docker` command
 *Note: You may have to replace `` `pwd` `` with the path to the chime_sims
 directory.*
 
-###Run the container on Windows
 To run the container in Docker on Windows, you must enable sharing from the local drive where the chime_sims
 directory exists. The following steps are for Windows 10 and Docker Desktop version 2.2.0.5.
 1. Right click on the Docker icon in the system tray and select settings.
