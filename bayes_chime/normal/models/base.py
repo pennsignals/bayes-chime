@@ -1,10 +1,11 @@
 """Helper functions to utilize SIR like models
 """
-from typing import Dict, Generator, List, Callable
+from typing import Dict, Generator, List, Callable, Optional
 
 from abc import ABC, abstractmethod
 
-from numpy import arange
+from datetime import date as Date
+
 from pandas import DataFrame, DatetimeIndex, infer_freq
 
 from bayes_chime.normal.utilities import (
@@ -84,9 +85,9 @@ class CompartmentModel(ABC):
 
     def __init__(
         self,
-        fit_columns: List[str],
+        fit_columns: Optional[List[str]] = None,
         update_parameters: Callable[
-            [int, Dict[str, FloatOrDistVar]], Dict[str, FloatOrDistVar]
+            [Date, Dict[str, FloatOrDistVar]], Dict[str, FloatOrDistVar]
         ] = None,
     ):
         """Initializes the compartment model
@@ -109,8 +110,8 @@ class CompartmentModel(ABC):
         self.fit_columns = fit_columns
         self.update_parameters = (
             update_parameters
-            if Dict[str, FloatOrDistVar] is not None
-            else lambda nn, pars: pars
+            if update_parameters is not None
+            else lambda date, **pars: pars
         )
 
     def propagate_uncertainties(
@@ -127,15 +128,13 @@ class CompartmentModel(ABC):
         """
         pars = self.parse_input(**meta_pars, **dist_pars)
 
-        df = DataFrame(
-            data=self._iterate_simulation(len(pars["dates"]), **pars)
-        ).set_index("dates")
+        df = DataFrame(data=self._iterate_simulation(**pars)).set_index("date")
 
         return self.post_process_simulation(df, **pars)
 
     def _iterate_simulation(
         self, **pars: Dict[str, FloatOrDistVar],
-    ) -> Generator[Dict[str, NormalDistVar]]:
+    ) -> Generator[Dict[str, NormalDistVar], None, None]:
         """Iterates model to build up SIR data
 
         Initial data is at day zero (no step).
