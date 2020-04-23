@@ -10,24 +10,21 @@ FloatLikeArray = TypeVar("FloatLikeArray")  # Arrays of floats or integers
 NormalDistVar = TypeVar("NormalDistVar")  # Normally distributed random var
 NormalDistArray = TypeVar("NormalDistArray")  # Array of Normally dist random var
 
+FloatOrDistVar = Union[FloatLike, NormalDistVar]
+FloatOrDistArray = Union[FloatLikeArray, NormalDistArray]
+
 
 def logistic_fcn(  # pylint: disable=C0103
-    x: Union[FloatLikeArray, NormalDistArray],
-    L: Union[FloatLike, NormalDistVar],
-    k: Union[FloatLike, NormalDistVar],
-    x0: Union[FloatLike, NormalDistVar],
-) -> Union[FloatLikeArray, NormalDistArray]:
+    x: FloatOrDistArray, L: FloatOrDistVar, k: FloatOrDistVar, x0: FloatOrDistVar,
+) -> FloatOrDistArray:
     """Computes `L / (1 + exp(-k(x-x0)))`.
     """
     return L / (1 + exp(-k * (x - x0)))
 
 
 def one_minus_logistic_fcn(  # pylint: disable=C0103
-    x: Union[FloatLikeArray, NormalDistArray],
-    L: Union[FloatLike, NormalDistVar],
-    k: Union[FloatLike, NormalDistVar],
-    x0: Union[FloatLike, NormalDistVar],
-) -> FloatLikeArray:
+    x: FloatOrDistArray, L: FloatOrDistVar, k: FloatOrDistVar, x0: FloatOrDistVar,
+) -> FloatOrDistArray:
     """Computes `1 - L / (1 + exp(-k(x-x0)))`.
     """
     return 1 - logistic_fcn(x, L, k, x0)
