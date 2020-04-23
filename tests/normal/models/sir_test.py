@@ -227,3 +227,19 @@ def test_sir_logistic_policy(penn_chime_setup, sir_data_w_policy):
         .fillna(0),
         predictions[COLS_TO_COMPARE],
     )
+
+
+def test_sir_type_conversion(sir_data_w_policy):
+    """Compares local SIR run with set gamma vs set with recovery_days
+    """
+    x, pars = sir_data_w_policy
+
+    sir_model = SIRModel()
+    predictions = sir_model.propagate_uncertainties(x, pars)
+
+    pars["recovery_days"] = 1 / pars.pop("gamma")
+    new_predictions = sir_model.propagate_uncertainties(x, pars)
+
+    assert_frame_equal(
+        predictions, new_predictions,
+    )
