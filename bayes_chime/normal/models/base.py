@@ -2,12 +2,12 @@
 """
 from typing import Dict, Generator, List, Callable
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from numpy import arange
 from pandas import DataFrame
 
-from bayes_chim.normal.utilities import (
+from bayes_chime.normal.utilities import (
     FloatLike,
     NormalDistVar,
     FloatOrDistVar,
@@ -84,7 +84,7 @@ class CompartmentModel(ABC):
         """
         return pars
 
-    def post_process_simulation(  # pylint: disable=R0201
+    def post_process_simulation(  # pylint: disable=R0201, W0613, C0103
         self, df: DataFrame, **pars: Dict[str, FloatOrDistVar]
     ) -> DataFrame:
         """Processes the final simulation result. This can add, e.g., new columns
@@ -100,17 +100,26 @@ class CompartmentModel(ABC):
 
         Arguments:
             n_iter: Number of iterations
-            sir_fcn: The SIR model step function
-            beta_i_fcn: Function which maps infected growth for given kwargs
-            kwargs: Parameters to consturct beta_i schedule and sir step
+            pars: Model meta and flexible parameters
         """
         for nn in arange(n_iter):
             yield data
             inp_pars = self.update_parameters(nn, **pars)
             data = self.simulation_step(data, **inp_pars)
 
-    def simulation_step(self, data, **pars):
-        """
+    @abstractmethod
+    def simulation_step(
+        self, data: Dict[str, NormalDistVar], **pars: Dict[str, FloatOrDistVar]
+    ):
+        """This function implements the actual simulation
+
+        Arguments:
+            data: The compartments for each iteration
+            pars: Model parameters
+
+        Returns:
+            Updated compartments and optionally additional information like change
+            from last iteration.
         """
         return data
 
