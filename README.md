@@ -85,8 +85,22 @@ The more flexible way to run the app in Docker is using the `docker` command
 
 *Note: You may have to replace `` `pwd` `` with the path to the chime_sims
 directory.*
+
+###Run the container on Windows
+To run the container in Docker on Windows, you must enable sharing from the local drive where the chime_sims
+directory exists. The following steps are for Windows 10 and Docker Desktop version 2.2.0.5.
+1. Right click on the Docker icon in the system tray and select settings.
+2. Click Resources and navigate to File Sharing.
+3. Select the checkbox for the appropriate local drive.
+4. Click Apply & Restart (you may be prompted to enter your credentials).
+To run the container, insert the file path to the chime_sims directory on your local drive:
+`docker run -it --rm -v InsertFilePath:/chime_sims chime_sims /bin/bash`
+
 ### Run the scripts
 Once the container starts you should be put into a bash shell where you can
 then run scripts as described above. For example:
 
 `python _01_GOF_sims.py -p data/Downtown_parameters.csv -t data/Downtown_ts.csv -o Downtown | python _02_munge_chains.py -o "-" -P Downtown`
+
+*Note: You may need to increase resources to run the scripts. To do so, right click on the Docker icon in the
+system tray and select settings then click Resources and adjust as needed.*
