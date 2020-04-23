@@ -5,6 +5,7 @@ from typing import Dict, Generator, List, Callable, Optional
 from abc import ABC, abstractmethod
 
 from datetime import date as Date
+from datetime import timedelta
 
 from pandas import DataFrame, DatetimeIndex, infer_freq
 
@@ -48,11 +49,11 @@ class CompartmentModel(ABC):
         if not isinstance(dates, DatetimeIndex):
             raise TypeError("Dates must be of type DatetimeIndex")
 
-        freq = dates.freq or infer_freq(dates)
-        if "freq" not in pars:
-            pars["freq"] = freq
-        elif pars["freq"] != freq:
-            raise ValueError("Specified frequency does not match dates.")
+        if not dates.freq:
+            dates.freq = infer_freq(dates)
+            pars["dates"] = dates
+
+        pars["days_per_step"] = pars["dates"].freq / timedelta(days=1)
 
         return pars
 

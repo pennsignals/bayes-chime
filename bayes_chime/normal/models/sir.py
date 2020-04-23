@@ -40,14 +40,14 @@ class SIRModel(CompartmentModel):
         pars = super().parse_input(**pars)
 
         if "gamma" not in pars:
-            pars["gamma"] = 1 / (pars["recovery_days"] / pars["freq"])
+            pars["gamma"] = 1 / (pars["recovery_days"] / pars["days_per_step"])
 
         if "beta" not in pars:
             total_population = 0
             for comp in self.compartments:
                 total_population += pars["intial_" + comp]
 
-            beta = log(2) / (pars["inital_doubling_time"] / pars["freq"])
+            beta = log(2) / (pars["inital_doubling_time"] / pars["days_per_step"])
             beta += pars["gamma"]
             beta *= total_population / pars["initial_susceptible"]
             pars["beta"] = beta
@@ -87,8 +87,8 @@ class SIRModel(CompartmentModel):
                 infected: Infected population
                 recovered: Recovered population
             pars:
-                beta_i: Growth rate for infected
-                gamma_i: Recovery rate for infected
+                beta: Growth rate for infected
+                gamma: Recovery rate for infected
             optional:
                 hospitalization_probability: Percent of new cases becoming hospitalized
                 market_share: Market share of hospital
@@ -103,12 +103,12 @@ class SIRModel(CompartmentModel):
 
         total = susceptible + infected + recovered
 
-        d_is = pars["beta"] * susceptible / total * infected
-        d_ri = pars["gamma"] * infected
+        d_si = pars["beta"] * susceptible / total * infected
+        d_ir = pars["gamma"] * infected
 
-        susceptible -= d_is
-        infected += d_is - d_ri
-        recovered += d_ri
+        susceptible -= d_si
+        infected += d_si - d_ir
+        recovered += d_ir
 
         susceptible = max(susceptible, 0)
         infected = max(infected, 0)
@@ -120,8 +120,8 @@ class SIRModel(CompartmentModel):
             "susceptible": susceptible * rescale,
             "infected": infected * rescale,
             "recovered": recovered * rescale,
-            "infected_new": d_is * rescale,
-            "recovered_new": d_ri * rescale,
+            "infected_new": d_si * rescale,
+            "recovered_new": d_ir * rescale,
         }
 
         if "hospitalization_probability" in pars and "market_share" in pars:
