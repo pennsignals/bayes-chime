@@ -4,7 +4,7 @@
 * Checks logistic policies in extreme limit
 """
 from typing import Tuple
-from datetime import date
+from datetime import date, timedelta
 
 from pytest import fixture
 
@@ -168,33 +168,35 @@ def test_sir_vs_penn_chime_no_policies(penn_chime_raw_df_no_policy, sir_data_wo_
     )
 
 
-#
-#
-# def test_sir_vs_penn_chime_w_policies(penn_chime_setup, sir_data_w_policy):
-#     """Compares local SIR against penn_chime SIR for with social policies
-#     """
-#     p, sir = penn_chime_setup
-#     x, pars = sir_data_w_policy
-#
-#     policies = sir.gen_policy(p)
-#
-#     def beta_i_fcn(x_iter, **kwargs):  # pylint: disable=W0613
-#         out = zeros(len(x_iter))
-#         ii = 0
-#         for beta, n_days in policies:
-#             for _ in range(n_days):
-#                 out[ii] = beta * p.population
-#                 ii += 1
-#
-#         return out
-#
-#     f = FitFcn(sir_step, beta_i_fcn=beta_i_fcn)
-#     y = f(x, pars)
-#
-#     assert_frame_equal(
-#         sir.raw_df.rename(columns=COLUMN_MAP)[COLS_TO_COMPARE], y[COLS_TO_COMPARE],
-#     )
-#
+def test_sir_vs_penn_chime_w_policies(penn_chime_setup, sir_data_w_policy):
+    """Compares local SIR against penn_chime SIR for with social policies
+    """
+    p, sir = penn_chime_setup
+    x, pars = sir_data_w_policy
+
+    policies = sir.gen_policy(p)
+    new_policy_date = x["dates"][0] + timedelta(days=policies[0][1])
+    beta0, beta1 = policies[0][0], policies[1][0]
+
+    n_total = 0
+    for key in SIRModel.compartments:
+        n_total += pars[f"initial_{key}"]
+
+    def update_parameters(ddate, **pars):  # pylint: disable=W0613
+        pars["beta"] = (beta0 if ddate < new_policy_date else beta1) * n_total
+        return pars
+
+    sir_model = SIRModel(update_parameters=update_parameters)
+    predictions = sir_model.propagate_uncertainties(x, pars)
+
+    assert_frame_equal(
+        sir.raw_df.set_index("date")
+        .fillna(0)
+        .rename(columns=COLUMN_MAP)[COLS_TO_COMPARE],
+        predictions[COLS_TO_COMPARE],
+    )
+
+
 #
 # def test_sir_logistic_policy(penn_chime_setup, sir_data_w_policy):
 #     """Compares local SIR against penn_chime SIR for with social policies
