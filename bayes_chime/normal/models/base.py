@@ -64,9 +64,10 @@ class CompartmentModel(ABC):
         """
         return df
 
+    @staticmethod
     @abstractmethod
     def simulation_step(
-        self, data: Dict[str, NormalDistVar], **pars: Dict[str, FloatOrDistVar]
+        data: Dict[str, NormalDistVar], **pars: Dict[str, FloatOrDistVar]
     ):
         """This function implements the actual simulation
 
