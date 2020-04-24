@@ -20,8 +20,9 @@ class SIRModel(CompartmentModel):
         "inital_recovered",
         "beta",  # or inital_doubling_time
         "gamma",  # or recovery_days
+        "nu",
     ]
-    optiona_parameters: List[str] = [
+    optional_parameters: List[str] = [
         "recovery_days",
         "inital_doubling_time",
         # all keywords below are used to compute hospital admissions and census
@@ -63,14 +64,13 @@ class SIRModel(CompartmentModel):
         df = df.fillna(0)
 
         # Add hosp census
-        hosp_keys = set(["initial_hospitalized", "hospitalization_length_of_stay"])
+        hosp_keys = set(["initial_hospitalized", "hospital_length_of_stay"])
         if hosp_keys.issubset(pars.keys()) and "hospital_admits" in df.columns:
 
             census = [pars["initial_hospitalized"]]
             for admits in df.hospital_admits.values[1:]:
                 census.append(
-                    admits
-                    + (1 - 1 / pars["hospitalization_length_of_stay"]) * census[-1]
+                    admits + (1 - 1 / pars["hospital_length_of_stay"]) * census[-1]
                 )
             df["hospital_census"] = census
 

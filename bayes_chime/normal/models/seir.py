@@ -20,7 +20,7 @@ class SEIRModel(SIRModel):
         "gamma",  # or recovery_days
         "alpha",  # or incubation_days
     ]
-    optiona_parameters: List[str] = [
+    optional_parameters: List[str] = [
         "recovery_days",
         "inital_doubling_time",
         "incubation_days",
