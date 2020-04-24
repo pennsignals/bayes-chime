@@ -47,7 +47,7 @@ class CompartmentModel(ABC):
         """
         dates = pars["dates"]
         if not isinstance(dates, DatetimeIndex):
-            raise TypeError("Dates must be of type DatetimeIndex")
+            dates = DatetimeIndex(dates)
 
         if not dates.freq:
             dates.freq = infer_freq(dates)
