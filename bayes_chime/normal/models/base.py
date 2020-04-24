@@ -91,6 +91,8 @@ class CompartmentModel(ABC):
         update_parameters: Callable[
             [Date, Dict[str, FloatOrDistVar]], Dict[str, FloatOrDistVar]
         ] = None,
+        fit_start_date: Optional[Date] = None,
+        debug: bool = False,
     ):
         """Initializes the compartment model
         update function
@@ -104,6 +106,9 @@ class CompartmentModel(ABC):
                 and all model (initial) parameters as input. It should return updated
                 parameters and defaults to no parameter updates. This can be used to
                 implement social distancing.
+            fit_start_date: When calling fit_fcn, this will only return results after
+                this date. This should be used if only a subset of the dates are fitted.
+            debug: Print additional messages
 
         Note:
             If the update_parameters method requires additional arguments, they must be
@@ -115,6 +120,8 @@ class CompartmentModel(ABC):
             if update_parameters is not None
             else lambda date, **pars: pars
         )
+        self.fit_start_date = fit_start_date
+        self.debug = debug
 
     def propagate_uncertainties(
         self, meta_pars: Dict[str, FloatLike], dist_pars: Dict[str, NormalDistVar]
@@ -167,9 +174,20 @@ class CompartmentModel(ABC):
         Returns:
             Array of `fit_columns` columns without first row (inital data).
         """
-        df = self.propagate_uncertainties(xx, pp).drop(0)
+        if self.debug:
+            print("fit_fcn call with")
+            print("xx:\n", xx)
+            print("pp:\n", pp)
+
+        df = self.propagate_uncertainties(xx, pp)
+        if self.fit_start_date:
+            df = df.loc[self.fit_start_date :]
+
         if self.fit_columns:
             df = df[self.fit_columns]
+
+        if self.debug:
+            print("result:\n", df)
 
         return df.values if df.values.shape[0] > 1 else df.values.flatten()
 
@@ -189,7 +207,7 @@ class CompartmentModel(ABC):
         Raises:
             Specific error messages if not set up correctly
         """
-        common_pars = xx.keys().intersection(pp.keys())
+        common_pars = set(xx.keys()).intersection(pp.keys())
         if common_pars:
             raise KeyError(
                 "Fixed and variable model paramers have shared variables:"
@@ -218,3 +236,5 @@ class CompartmentModel(ABC):
                         y_data=y_data,
                     )
                 )
+
+        print("Checks passed")
