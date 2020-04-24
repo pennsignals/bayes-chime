@@ -103,8 +103,8 @@ def plot_band(
         kwargs:  Shared kwargs
             Requires: x and y1, ym, y2
     """
-    line_kws = line_kws or {}
-    fill_kws = fill_kws or {}
+    line_kws = line_kws.copy() or {}
+    fill_kws = fill_kws.copy() or {}
 
     y1 = kwargs.pop("y1")
     ym = kwargs.pop("ym")
