@@ -1,8 +1,8 @@
 """Fitting routines for approximating distributions with normal distributions
 """
-from typing import TypeVar, Dict, Any
+from typing import TypeVar, Dict, Any, Optional
 
-from numpy import linspace, sqrt
+from numpy import linspace, sqrt, median, sum
 
 from scipy.optimize import curve_fit
 from scipy.stats import norm, beta, gamma
@@ -16,9 +16,19 @@ from bayes_chime.normal.utilities import FloatLikeArray, NormalDistVar, FloatOrD
 Dist = TypeVar("ScipyContinousDistribution")
 
 
-def fit_norm_dist_to_ens(x: FloatLikeArray) -> NormalDistVar:
+def fit_norm_dist_to_ens(
+    x: FloatLikeArray, thresh: Optional[float] = None
+) -> NormalDistVar:
     """Approximates ensemble (random vector) by normal distribution
+
+    if thresh is specified, inferst how much results deviate from median and cuts out
+    outliers with modified z_score > thresh.
     """
+    if thresh:
+        d = sqrt((x - median(x)) ** 2)
+        mod_z_score = 0.6745 * d / median(d)
+        x = x[mod_z_score < thresh]
+
     return gvar(*norm.fit(x))
 
 
