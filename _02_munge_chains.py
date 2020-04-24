@@ -200,6 +200,10 @@ def mk_projection_tables(df, first_day, outdir):
         data=arrq[:, :, 3].T,
         columns=[f"Hospitalized Census {pf}" for pf in column_postfix],
     )
+    summary_df_hsp = pd.DataFrame(
+        data=arrq[:, :, 4].T,
+        columns=[f"ICU Census {pf}" for pf in column_postfix],
+    )
     summary_df_vent = pd.DataFrame(
         data=arrq[:, :, 5].T, columns=[f"Vent Census {pf}" for pf in column_postfix]
     )
@@ -207,6 +211,10 @@ def mk_projection_tables(df, first_day, outdir):
     summary_df_hsp_admits = pd.DataFrame(
         data=arrq[:, :, 0].T.astype(int),
         columns=[f"Hospitalized Admits {pf}" for pf in column_postfix],
+    )
+    summary_df_hsp_admits = pd.DataFrame(
+        data=arrq[:, :, 1].T.astype(int),
+        columns=[f"ICU Admits {pf}" for pf in column_postfix],
     )
     summary_df_vent_admits = pd.DataFrame(
         data=arrq[:, :, 2].T.astype(int),
