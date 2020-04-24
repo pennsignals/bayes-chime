@@ -78,6 +78,9 @@ def plot_gvar(
     yy_mean = gv_mean(y)
     yy_sdev = gv_sdev(y)
 
+    z_factor = kwargs.pop("z_factor", 1)
+    yy_sdev *= z_factor
+
     return plot_band(
         x=x,
         y1=yy_mean - yy_sdev,
