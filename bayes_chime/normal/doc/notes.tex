@@ -1,0 +1,168 @@
+\batchmode
+\documentclass[paper=a4, fontsize=12pt, prl, notitlepage]{revtex4-1}
+\usepackage[ssp]{xetex_import}
+\linespread{1.4}
+\errorstopmode
+
+\begin{document}
+
+\title{Math behind Bayesian uncertainty propagation using normal approximations}
+\author{Christopher Körber}
+\affiliation{%
+Department of Physics,
+University of California,
+Berkeley, CA 94720, USA\\
+Nuclear Science Division, %
+LBNL,
+Berkeley, CA 94720, USA
+}
+\date{\today}
+\begin{abstract}
+This document addresses the math used to infer posterior distributions and propagate erros used in \href{https://github.com/pennsignals/chime_sims/pull/49}{the performance boost through normal approximations PR}.
+\end{abstract}
+
+\maketitle
+
+%==============================================================================
+% Content
+%==============================================================================
+
+
+
+\section{Assumptions}
+The general theme of this document is: \textit{casting everything to normal distribution simplifies computations}.
+
+In general, the techniques in PR \#49 make two approximations
+\begin{enumerate}
+    \item All underlaying \textit{input} distributions of the model can be sufficiently approximated with correlated normal distributions (this includes model parameters as well as data)
+    \item The posterior distribution can be sufficiently approximated by a normal distribution
+\end{enumerate}
+
+\section{Error propagation}
+The \texttt{gvar} module is used to analytically propagate errors.
+The eqution used to computed the standard deviation of a function $f(\vec p)$ at a given point in the parameter space $\bar {\vec p}$ is
+\begin{equation}
+    \sigma_f^2(\bar {\vec p})
+    =
+    \left[
+        \sum_{i,j=1}^N
+        \frac{\partial f(\vec p)}{\partial p_i}
+        \left(\Sigma_p\right)_{ij}
+        \frac{\partial f(\vec p)}{\partial p_j}
+    \right]_{\vec p = \bar {\vec p}}
+    \, ,
+\end{equation}
+where $\Sigma_p$ is the covariance matrix of the normally distributed parameters $\vec p$.
+In the uncorrelated case, this simplifies to
+\begin{equation}
+    \sigma_f^2(\bar {\vec p})
+    =
+    \left[
+        \sum_{i=1}^N
+        \left(\frac{\partial f(\vec p)}{\partial p_i}\right)^2
+        \sigma_{p_i}^2
+    \right]_{\vec p = \bar {\vec p}}
+    \, .
+\end{equation}
+
+The module \texttt{gvar} is capable of tracing such derivatives because implelentated functions are aware of their analytical derivative.
+E.g., if you add two \texttt{gvar}s, the resulting \texttt{gvar} knows that it's respective derivative in direction of the previous \texttt{gvar}s is one.
+
+
+
+
+\section{Computation of the posterior}
+
+This section explains how the \texttt{lsqfit} module approximates the posterior distribution $P(\vec p|D,M)$ given data $D$, an input model $M$ and it's corresponding priors $P(\vec p| M)$.
+
+\subsection{Defintions}
+
+The posterior distribution is proportional to the probability of the data given the model and parameters $P(D|\vec p, M)$ (the likelihood) times the prior of parameters
+\begin{align}
+    P(\vec p|D, M) &=
+    \frac{P(D|\vec p, M)P(\vec p | M)}{P(D|M)}
+    \propto
+    P(D|\vec p, M)P(\vec p | M)
+    \, .
+\end{align}
+The marginal likelihood of the data $D$ given the model $M$ is obtained by integrating over the whole parameter space
+\begin{equation}
+	P(D|M)
+	=
+	\int d \vec p P(D|\vec p, M)P(\vec p | M) \, .
+\end{equation}
+Because we effectively normalize the posterior by the ratio of both distributions, we can neglect constant factors in the computation.
+
+The likelihood of the data given the model and parameters is described by a $\chi^2$ distribution
+\begin{equation}
+    P(D|\vec p, M)
+    \sim
+    \exp\left\{
+        - \frac{1}{2}
+        \sum_{i,j=1}^N
+        \left[y_i - \vec f_M(x_i, \vec p)\right]
+        \left(\Sigma_y^{-1}\right)_{ij}
+        \left[y_j - \vec f_M(x_j, \vec p)\right]
+    \right\}
+    =
+    \exp\left\{
+        - \frac{1}{2}
+        \chi^2_D(\vec p)
+    \right\}
+    \, ,
+\end{equation}
+where $\Sigma_y$ is the covariance matrix of the data and $f_M(x_j, \vec p)$ the model function evaluated at point $x_j$ which aims to describe the data point $y_j$.
+
+Maximizing the Likelihood as a function of $\vec p$ corresponds to minimizing the exponent which is the standard $\chi^2$-minimization procedure.
+Computing the posterior distribution function for a given prior $P(\vec p|D, M)$ is what we call Bayesian inference.
+Normal approximations of the posterior distribution are somewhere in the middle of a full Bayesian treatment and regular $\chi^2$-minimization.
+
+\subsection{Normal approximation of the posterior}
+The including the multivariate normal prior distribution with mean $\vec p_0$ and covariance $\Sigma_{p_0}$, posterior distribution is proportional to
+\begin{align}
+    P(\vec p|D, M)
+    &\sim
+    \exp\left\{
+        - \frac{1}{2}
+        \chi^2_D(\vec p)
+        - \frac{1}{2}
+        \chi^2_M(\vec p)
+    \right\}
+    =
+    \exp\left\{
+        - \frac{1}{2}
+        \chi^2_{DM}(\vec p)
+    \right\}
+    \, , &
+    \chi^2_M(\vec p)
+    &=
+    \left[\vec p - \vec p_0\right]^T \cdot
+    \Sigma_{p_0}^{-1}
+    \left[\vec p - \vec p_0\right]\, .
+\end{align}
+In short, the \texttt{lsqfit} module approximates the posterior by evaluating the combined prior and data $\chi^2_{DM}(\vec p)$ function up to second order in the parameter space at the point which minimizes the $\chi^2_{DM}(\vec p)$
+\begin{align}
+    \chi^2_{DM}(\vec p)
+    & \approx
+    \chi^2_{DM}(\bar{\vec p})
+    +
+    \left[\vec p - \bar{\vec p}\right]^T
+    \Sigma_{DM}^{-1}(\bar{\vec p})
+    \left[\vec p - \bar{\vec p}\right]^T
+    \, , & &
+    \left.\frac{\partial \chi^2_{DM}(\vec p)}{\partial p_\alpha}\right|_{\vec p = \bar{\vec p}} = 0 \, \quad \forall_\alpha \, .
+\end{align}
+In this approximation, the posterior is again a normal distribution of mean $\bar{\vec p}$ (same as maximal likelihood estimation) with covariance $\Sigma_{DM}(\bar{\vec p})$.
+The vector $\bar{\vec p}$ and covarinace $\Sigma_{DM}(\bar{\vec p})$ are computed by the \texttt{nonlinear\_fit} method (the estimation of $\bar{\vec p}$ is the \textit{fitting} process).
+The appendix A of \cite{Bouchard:2014ypa} describes how $\Sigma_{DM}(\bar{\vec p})$ is estimated using derivatives of the residulas with respect of prior parameters.
+
+
+
+%==============================================================================
+% End Content
+%==============================================================================
+\bibliography{notes.bib}{}
+\bibliographystyle{plainurl}
+
+\batchmode
+\end{document}
