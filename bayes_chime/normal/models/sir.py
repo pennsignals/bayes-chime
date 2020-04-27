@@ -20,16 +20,21 @@ class SIRModel(CompartmentModel):
         "inital_recovered",
         "beta",  # or inital_doubling_time
         "gamma",  # or recovery_days
-        "nu",
     ]
     optional_parameters: List[str] = [
         "recovery_days",
         "inital_doubling_time",
         # all keywords below are used to compute hospital admissions and census
-        "initial_hospitalized",
         "market_share",
-        "hospitalization_probability",
+        "initial_hospital",
+        "hospital_probability",
         "hospital_length_of_stay",
+        "initial_icu",
+        "icu_probability",
+        "icu_length_of_stay",
+        "initial_vent",
+        "vent_probability",
+        "vent_length_of_stay",
     ]
     compartments: List[str] = ["susceptible", "infected", "recovered"]
 
@@ -64,15 +69,16 @@ class SIRModel(CompartmentModel):
         df = df.fillna(0)
 
         # Add hosp census
-        hosp_keys = set(["initial_hospitalized", "hospital_length_of_stay"])
-        if hosp_keys.issubset(pars.keys()) and "hospital_admits" in df.columns:
+        for kind in ["hospital", "icu", "vent"]:
+            cenus_keys = set([f"initial_{kind}", f"{kind}_length_of_stay"])
+            if cenus_keys.issubset(pars.keys()) and f"{kind}_admits" in df.columns:
 
-            census = [pars["initial_hospitalized"]]
-            for admits in df.hospital_admits.values[1:]:
-                census.append(
-                    admits + (1 - 1 / pars["hospital_length_of_stay"]) * census[-1]
-                )
-            df["hospital_census"] = census
+                census = [pars[f"initial_{kind}"]]
+                for admits in df.hospital_admits.values[1:]:
+                    census.append(
+                        admits + (1 - 1 / pars[f"{kind}_length_of_stay"]) * census[-1]
+                    )
+                df[f"{kind}_census"] = census
 
         return df
 
@@ -90,7 +96,9 @@ class SIRModel(CompartmentModel):
                 beta: Growth rate for infected
                 gamma: Recovery rate for infected
             optional:
-                hospitalization_probability: Percent of new cases becoming hospitalized
+                hospital_probability: Percent of new cases becoming hospitalized
+                icu_probability: Percent of new hospitalizations being treated in icu
+                vent_probability: Percent of new icu cases in need of ventilation
                 market_share: Market share of hospital
 
         Returns:
@@ -124,11 +132,17 @@ class SIRModel(CompartmentModel):
             "recovered_new": d_ir * rescale,
         }
 
-        if "hospitalization_probability" in pars and "market_share" in pars:
+        if "hospital_probability" in pars and "market_share" in pars:
             out["hospital_admits"] = (
                 out["infected_new"]
-                * pars["hospitalization_probability"]
+                * pars["hospital_probability"]
                 * pars["market_share"]
             )
+
+            if "icu_probability" in pars:
+                out["icu_admits"] = out["hospital_admits"] * pars["icu_probability"]
+
+                if "vent_probability" in pars:
+                    out["vent_admits"] = out["icu_admits"] * pars["vent_probability"]
 
         return out

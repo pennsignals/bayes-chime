@@ -99,9 +99,9 @@ def fixture_sir_data_wo_policy(penn_chime_setup, penn_chime_raw_df_no_policy):
         "gamma": simsir.gamma,
         "initial_susceptible": day0.susceptible,
         "initial_infected": day0.infected,
-        "initial_hospitalized": day0.hospitalized,
+        "initial_hospital": day0.hospitalized,
         "initial_recovered": day0.recovered,
-        "hospitalization_probability": simsir.rates["hospitalized"],
+        "hospital_probability": simsir.rates["hospitalized"],
     }
     x = {
         "dates": DatetimeIndex(raw_df.index),
@@ -126,9 +126,9 @@ def fixture_sir_data_w_policy(penn_chime_setup):
         "gamma": simsir.gamma,
         "initial_susceptible": day0.susceptible,
         "initial_infected": day0.infected,
-        "initial_hospitalized": day0.hospitalized,
+        "initial_hospital": day0.hospitalized,
         "initial_recovered": day0.recovered,
-        "hospitalization_probability": simsir.rates["hospitalized"],
+        "hospital_probability": simsir.rates["hospitalized"],
     }
     x = {
         "dates": DatetimeIndex(raw_df.index),

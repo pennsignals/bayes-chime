@@ -10,31 +10,14 @@ class SEIRModel(SIRModel):
     """Basic SEIR model
     """
 
-    model_parameters: List[str] = [
-        "dates",  # DatetimeIndex
-        "initial_susceptible",
-        "initial_exposed",
-        "initial_infected",
-        "inital_recovered",
-        "beta",  # or inital_doubling_time
-        "gamma",  # or recovery_days
+    model_parameters: List[str] = SIRModel.model_parameters + [
         "alpha",  # or incubation_days
     ]
-    optional_parameters: List[str] = [
-        "recovery_days",
-        "inital_doubling_time",
+    optional_parameters: List[str] = SIRModel.model_parameters + [
         "incubation_days",
-        # all keywords below are used to compute hospital admissions and census
-        "initial_hospitalized",
-        "market_share",
-        "hospitalization_probability",
-        "hospital_length_of_stay",
     ]
-    compartments: List[str] = [
-        "susceptible",
+    compartments: List[str] = SIRModel.compartments + [
         "exposed",
-        "infected",
-        "recovered",
     ]
 
     def parse_input(  # pylint: disable=R0201
@@ -67,7 +50,9 @@ class SEIRModel(SIRModel):
                 gamma: Recovery rate for infected
                 nu: changes effect of susceptible for exposed to `(S/N) ** nu`
             optional:
-                hospitalization_probability: Percent of new cases becoming hospitalized
+                hospital_probability: Percent of new cases becoming hospitalized
+                icu_probability: Percent of new hospitalizations being treated in icu
+                vent_probability: Percent of new icu cases in need of ventilation
                 market_share: Market share of hospital
 
         Returns:
