@@ -2,8 +2,9 @@
 """
 from typing import Dict, List
 
-from numpy import log
+from numpy import log, NaN
 from pandas import DataFrame
+
 
 from bayes_chime.normal.utilities import FloatOrDistVar, NormalDistVar
 from bayes_chime.normal.models.base import CompartmentModel
@@ -69,32 +70,25 @@ class SIRModel(CompartmentModel):
         # fill initial hosp admits if present
         df = df.fillna(0)
 
-        if "market_share" in pars:
-            df["infected_new_local"] = df["infected_new"] * pars["market_share"]
+        # Local infections
+        df["infected_new_local"] = df["infected_new"] * pars.get("market_share", NaN)
 
         dependency = {
             "hospital": "infected_new_local",
-            "icu": "hospital",
-            "vent": "icu",
+            "icu": "hospital_admits",
+            "vent": "icu_admits",
         }
 
         for kind in ["hospital", "icu", "vent"]:
-            # Check if it is possible to compute admits
-            if not (f"{kind}_probability" in pars and dependency[kind] in df):
-                break  # if not stop
+            df[f"{kind}_admits"] = df[dependency[kind]].values * pars.get(
+                f"{kind}_probability", NaN
+            )
 
-            df[f"{kind}_admits"] = df[dependency[kind]] * pars[f"{kind}_probability"]
-
-        for kind in ["hospital", "icu", "vent"]:
-            # Check if it is possible to compute census
-            keys = set([f"initial_{kind}", f"{kind}_length_of_stay"])
-            if not (keys.issubset(pars.keys()) and f"{kind}_admits" in df.columns):
-                break  # if not stop
-
-            census = [pars[f"initial_{kind}"]]
-            for admits in df.hospital_admits.values[1:]:
+            census = [pars.get(f"initial_{kind}", NaN)]
+            for base in df[f"{kind}_admits"].values[1:]:
                 census.append(
-                    admits + (1 - 1 / pars[f"{kind}_length_of_stay"]) * census[-1]
+                    base
+                    + (1 - 1 / pars.get(f"{kind}_length_of_stay", NaN)) * census[-1]
                 )
             df[f"{kind}_census"] = census
 

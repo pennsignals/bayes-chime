@@ -13,7 +13,7 @@ class SEIRModel(SIRModel):
     model_parameters: List[str] = SIRModel.model_parameters + [
         "alpha",  # or incubation_days
     ]
-    optional_parameters: List[str] = SIRModel.model_parameters + [
+    optional_parameters: List[str] = SIRModel.optional_parameters + [
         "incubation_days",
     ]
     compartments: List[str] = SIRModel.compartments + [
