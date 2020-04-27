@@ -49,11 +49,6 @@ class SEIRModel(SIRModel):
                 alpha: Incubation rate for infected
                 gamma: Recovery rate for infected
                 nu: changes effect of susceptible for exposed to `(S/N) ** nu`
-            optional:
-                hospital_probability: Percent of new cases becoming hospitalized
-                icu_probability: Percent of new hospitalizations being treated in icu
-                vent_probability: Percent of new icu cases in need of ventilation
-                market_share: Market share of hospital
 
         Returns:
             Updated compartments and optionally additional information like change
@@ -91,12 +86,5 @@ class SEIRModel(SIRModel):
             "infected_new": d_ei * rescale,
             "recovered_new": d_ir * rescale,
         }
-
-        if "hospitalization_probability" in pars and "market_share" in pars:
-            out["hospital_admits"] = (
-                out["infected_new"]
-                * pars["hospitalization_probability"]
-                * pars["market_share"]
-            )
 
         return out

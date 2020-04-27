@@ -63,22 +63,40 @@ class SIRModel(CompartmentModel):
     def post_process_simulation(  # pylint: disable=R0201, W0613, C0103
         self, df: DataFrame, **pars: Dict[str, FloatOrDistVar]
     ) -> DataFrame:
-        """Compute Census based on exponential LOS distribution if parameters present.
+        """Compute admits and census based on exponential LOS distribution if parameters
+        present.
         """
         # fill initial hosp admits if present
         df = df.fillna(0)
 
-        # Add hosp census
-        for kind in ["hospital", "icu", "vent"]:
-            cenus_keys = set([f"initial_{kind}", f"{kind}_length_of_stay"])
-            if cenus_keys.issubset(pars.keys()) and f"{kind}_admits" in df.columns:
+        if "market_share" in pars:
+            df["infected_new_local"] = df["infected_new"] * pars["market_share"]
 
-                census = [pars[f"initial_{kind}"]]
-                for admits in df.hospital_admits.values[1:]:
-                    census.append(
-                        admits + (1 - 1 / pars[f"{kind}_length_of_stay"]) * census[-1]
-                    )
-                df[f"{kind}_census"] = census
+        dependency = {
+            "hospital": "infected_new_local",
+            "icu": "hospital",
+            "vent": "icu",
+        }
+
+        for kind in ["hospital", "icu", "vent"]:
+            # Check if it is possible to compute admits
+            if not (f"{kind}_probability" in pars and dependency[kind] in df):
+                break  # if not stop
+
+            df[f"{kind}_admits"] = df[dependency[kind]] * pars[f"{kind}_probability"]
+
+        for kind in ["hospital", "icu", "vent"]:
+            # Check if it is possible to compute census
+            keys = set([f"initial_{kind}", f"{kind}_length_of_stay"])
+            if not (keys.issubset(pars.keys()) and f"{kind}_admits" in df.columns):
+                break  # if not stop
+
+            census = [pars[f"initial_{kind}"]]
+            for admits in df.hospital_admits.values[1:]:
+                census.append(
+                    admits + (1 - 1 / pars[f"{kind}_length_of_stay"]) * census[-1]
+                )
+            df[f"{kind}_census"] = census
 
         return df
 
@@ -95,11 +113,6 @@ class SIRModel(CompartmentModel):
             pars:
                 beta: Growth rate for infected
                 gamma: Recovery rate for infected
-            optional:
-                hospital_probability: Percent of new cases becoming hospitalized
-                icu_probability: Percent of new hospitalizations being treated in icu
-                vent_probability: Percent of new icu cases in need of ventilation
-                market_share: Market share of hospital
 
         Returns:
             Updated compartments and optionally additional information like change
@@ -131,18 +144,5 @@ class SIRModel(CompartmentModel):
             "infected_new": d_si * rescale,
             "recovered_new": d_ir * rescale,
         }
-
-        if "hospital_probability" in pars and "market_share" in pars:
-            out["hospital_admits"] = (
-                out["infected_new"]
-                * pars["hospital_probability"]
-                * pars["market_share"]
-            )
-
-            if "icu_probability" in pars:
-                out["icu_admits"] = out["hospital_admits"] * pars["icu_probability"]
-
-                if "vent_probability" in pars:
-                    out["vent_admits"] = out["icu_admits"] * pars["vent_probability"]
 
         return out
