@@ -1,0 +1,5 @@
+param,value
+hosp_min,10
+hosp_rel,0.1
+vent_min,2
+vent_rel,0.1
