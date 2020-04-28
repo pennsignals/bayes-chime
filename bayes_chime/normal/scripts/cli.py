@@ -1,18 +1,19 @@
 """Command line interface script for running a Bayesian fit from command line
 """
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 
 from argparse import ArgumentParser
 
 from datetime import date as Date
 from datetime import timedelta
 
+from numpy import abs as np_abs
 from pandas import DataFrame, date_range, read_csv
 from scipy.stats import expon
 
 from gvar._gvarcore import GVar  # pylint: disable=E0611
 from gvar import gvar
-from lsqfit import nonlinear_fit
+from lsqfit import nonlinear_fit, empbayes_fit
 
 
 from bayes_chime.normal.utilities import (
@@ -26,7 +27,6 @@ from bayes_chime.normal.utilities import (
 from bayes_chime.normal.models import SEIRModel
 from bayes_chime.normal.scripts.utils import (
     DEBUG,
-    Fit,
     read_parameters,
     read_data,
     dump_results,
@@ -153,34 +153,18 @@ def prepare_model_parameters(
     return xx, pp
 
 
-def prepare_data(
-    data: DataFrame, data_error_file: Optional[str] = None
-) -> Tuple[NormalDistArray, Optional[Fit]]:
-    """Associates errors to data.
+def get_yy(data: DataFrame, **err: Dict[str, FloatLike]) -> NormalDistArray:
+    """Converts data to gvars by adding uncertainty:
 
-    Errors of data are uncorrelated normal errors with
-    std(y) = mean(y) * rel_err + min_err
-
-    If data_error_file is given, parameters are read from file. If not emperical bayes
-    is used to infer parameters.
+    yy_sdev = yy_mean * rel_err + min_er
     """
-    if not "hosp" in data or not "vent" in data:
-        raise KeyError("Data does not contain required columns (hosp and vent).")
-
-    if data_error_file:
-        error_infos = read_csv(data_error_file).set_index("param")["value"].to_dict()
-        yy = gvar(
-            [data["hosp"].values, data["vent"].values],
-            [
-                data["hosp"].values * error_infos["hosp_rel"] + error_infos["hosp_min"],
-                data["vent"].values * error_infos["vent_rel"] + error_infos["vent_min"],
-            ],
-        ).T
-        fit = None
-    else:
-        ...
-
-    return yy, fit
+    return gvar(
+        [data["hosp"].values, data["vent"].values],
+        [
+            data["hosp"].values * err["hosp_rel"] + err["hosp_min"],
+            data["vent"].values * err["vent_rel"] + err["vent_min"],
+        ],
+    ).T
 
 
 def main():
@@ -211,10 +195,32 @@ def main():
     model.fit_start_date = xx["day0"]
 
     # If emperical bayes is selected to fit the data, this also returns the fit object
-    yy, fit = prepare_data(data, args.data_error_file)
-    LOGGER.debug("Prepared fit data:\n%s", yy)
-    if not fit:
-        fit = nonlinear_fit(data=(xx, yy), prior=pp, fcn=model.fit_fcn, debug=False)
+    LOGGER.debug("Starting fit")
+    if args.data_error_file:
+        xx["error_infos"] = (
+            read_csv(args.data_error_file).set_index("param")["value"].to_dict()
+        )
+        LOGGER.debug("Using y_errs from file:\n%s", xx["error_infos"])
+        fit = nonlinear_fit(
+            data=(xx, get_yy(data, **xx["error_infos"])),
+            prior=pp,
+            fcn=model.fit_fcn,
+            debug=args.verbose,
+        )
+    else:
+        LOGGER.debug("Employing emperical Bayes to infer y-errors")
+        # This fit varies the size of the y-errors of hosp_min and vent_min
+        # to optimize the description of the data (logGBF)
+        fit_kwargs = lambda error_infos: dict(
+            data=(xx, get_yy(data, hosp_rel=0, vent_rel=0, **error_infos)),
+            prior=pp,
+            fcn=model.fit_fcn,
+            debug=args.verbose,
+        )
+        fit, xx["error_infos"] = empbayes_fit(
+            {"hosp_min": 10, "vent_min": 1}, fit_kwargs
+        )
+        LOGGER.debug("Empbayes y_errs are:\n%s", xx["error_infos"])
 
     LOGGER.info("Fit result:\n%s", fit)
 
