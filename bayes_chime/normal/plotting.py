@@ -2,7 +2,7 @@
 """
 from typing import TypeVar, Dict, Any, Optional, List
 
-from numpy import linspace, array
+from numpy import linspace, array, where
 from pandas import DataFrame
 
 from matplotlib.pylab import gca as get_current_actor
@@ -65,13 +65,17 @@ def plot_gv_dist(gvar: NormalDistVar, **kwargs):
 
 
 def plot_gvar(
-    line_kws: Dict[str, Any] = None, fill_kws: Dict[str, Any] = None, **kwargs
+    line_kws: Dict[str, Any] = None,
+    fill_kws: Dict[str, Any] = None,
+    y_min: Optional[float] = None,
+    **kwargs
 ) -> Axes:
     """Plots gvar as a band.
 
     Arguments:
         line_kws: Kwargs specific for line plot
         fill_kws: Kwargs specific for fill between
+        y_min: Minimal value for data
         kwargs:  Shared kwargs
             Requires: x and y
             Optional: z_factor to upadte band with (e.g., 0.674 for 0.5 CI)
@@ -91,18 +95,23 @@ def plot_gvar(
         y2=yy_mean + yy_sdev,
         line_kws=line_kws,
         fill_kws=fill_kws,
+        y_min=y_min,
         **kwargs,
     )
 
 
 def plot_band(
-    line_kws: Dict[str, Any] = None, fill_kws: Dict[str, Any] = None, **kwargs
+    line_kws: Dict[str, Any] = None,
+    fill_kws: Dict[str, Any] = None,
+    y_min: Optional[float] = None,
+    **kwargs
 ) -> Axes:
     """Plots gvar as a band.
 
     Arguments:
         line_kws: Kwargs specific for line plot
         fill_kws: Kwargs specific for fill between
+        y_min: Minimal value for data
         kwargs:  Shared kwargs
             Requires: x and y1, ym, y2
     """
@@ -112,6 +121,9 @@ def plot_band(
     y1 = kwargs.pop("y1")
     ym = kwargs.pop("ym")
     y2 = kwargs.pop("y2")
+    if y_min is not None:
+        y1 = where(y1 < y_min, y_min, y1)
+        ym = where(ym < y_min, y_min, ym)
     x = kwargs.pop("x")
 
     ax = kwargs.pop("ax", get_current_actor())
@@ -125,7 +137,7 @@ def plot_band(
     return ax
 
 
-def plot_fit(
+def plot_fit(  # pylint: disable=R0914
     fit_df: DataFrame,
     columns: List[List[str]],
     data: Optional[Dict[str, NormalDistArray]] = None,
@@ -157,6 +169,7 @@ def plot_fit(
             plot_gvar(
                 x=fit_df.index,
                 y=fit_df[col].values,
+                y_min=0,
                 ax=ax,
                 **gv_kws,
                 color="black",
@@ -168,6 +181,7 @@ def plot_fit(
                 plot_gvar(
                     x=fit_df.index[: len(data[col])],
                     y=data[col],
+                    y_min=0,
                     ax=ax,
                     color="red",
                     line_kws={**gv_line_kws, "label": "Data"},
