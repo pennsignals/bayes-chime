@@ -7,7 +7,6 @@ from argparse import ArgumentParser
 from datetime import date as Date
 from datetime import timedelta
 
-from numpy import abs as np_abs
 from pandas import DataFrame, date_range, read_csv
 from scipy.stats import expon
 
@@ -45,14 +44,15 @@ def parse_args():
     parser.add_argument(
         "-p",
         "--parameter-file",
-        help="File to read parameters from",
+        help="File to read prior parameters from. This file is required.",
         type=str,
         required=True,
     )
     parser.add_argument(
         "-d",
         "--data-file",
-        help="File to read data from. Must have columns `hosp` and `vent`.",
+        help="File to read data from. Must have columns `hosp` and `vent`."
+        " This file is required.",
         type=str,
         required=True,
     )
@@ -61,21 +61,25 @@ def parse_args():
         "--data-error-file",
         help="File to read data error policy from."
         " This specifies relative and absolute errors of `hosp` and `vent`."
-        " If not given, employes emperical Bayes to esitmate errors.",
+        " E.g., y_sdev = y_mean * rel_err + abs_arr."
+        " If not given, employs empirical Bayes to abs_arr only to estimate errors.",
         type=str,
         default=None,
     )
     parser.add_argument(
         "-o",
         "--output_dir",
-        help="The directory to dump results into.",
+        help="The directory to dump results into."
+        " This will dump a pickle file (read in by gvar.load('fit.pickle')) which"
+        " completely determines the fit,"
+        " a prediction csv and a pdf plot. Default: %(default)s",
         type=str,
         default="output",
     )
     parser.add_argument(
         "-e",
         "--extend-days",
-        help="Extend prediction by number of days. Default: %s(default)",
+        help="Extend prediction by number of days. Default: %(default)s",
         type=int,
         default=30,
     )
@@ -194,7 +198,7 @@ def main():
     LOGGER.debug("Parsed model priors:\n%s", pp)
     model.fit_start_date = xx["day0"]
 
-    # If emperical bayes is selected to fit the data, this also returns the fit object
+    # If empirical bayes is selected to fit the data, this also returns the fit object
     LOGGER.debug("Starting fit")
     if args.data_error_file:
         xx["error_infos"] = (
@@ -208,7 +212,7 @@ def main():
             debug=args.verbose,
         )
     else:
-        LOGGER.debug("Employing emperical Bayes to infer y-errors")
+        LOGGER.debug("Employing empirical Bayes to infer y-errors")
         # This fit varies the size of the y-errors of hosp_min and vent_min
         # to optimize the description of the data (logGBF)
         fit_kwargs = lambda error_infos: dict(
