@@ -1,6 +1,6 @@
 """Command line interface script for running a Bayesian fit from command line
 """
-from typing import Dict, Tuple, Optional, TypeVar
+from typing import Dict, Tuple, Optional
 
 from argparse import ArgumentParser
 
@@ -26,14 +26,13 @@ from bayes_chime.normal.utilities import (
 from bayes_chime.normal.models import SEIRModel
 from bayes_chime.normal.scripts.utils import (
     DEBUG,
+    Fit,
     read_parameters,
     read_data,
     dump_results,
     get_logger,
 )
 
-
-Fit = TypeVar("NonLinearFit")
 
 LOGGER = get_logger(__name__)
 
@@ -213,13 +212,14 @@ def main():
 
     # If emperical bayes is selected to fit the data, this also returns the fit object
     yy, fit = prepare_data(data, args.data_error_file)
-    LOGGER.debug("Fit data:\n%s", yy)
+    LOGGER.debug("Prepared fit data:\n%s", yy)
     if not fit:
         fit = nonlinear_fit(data=(xx, yy), prior=pp, fcn=model.fit_fcn, debug=False)
 
     LOGGER.info("Fit result:\n%s", fit)
 
     dump_results(args.output_dir, fit=fit, model=model, extend_days=args.extend_days)
+    LOGGER.debug("Dumped results to:\n%s", args.output_dir)
 
 
 if __name__ == "__main__":
