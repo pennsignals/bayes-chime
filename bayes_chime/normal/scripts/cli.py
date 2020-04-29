@@ -234,3 +234,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+'''
+Plan:  get his thing working in a single script
+Compare it against regular bayeschime
+'''
+
+
