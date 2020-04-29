@@ -176,9 +176,27 @@ def bayes_xval(days_withheld = 7, which_hospital = "HUP"):
     vRMSFE = np.mean((mm.vmu - mm.vent)**2)**.5
 
     # now run MCMC
+    df = do_chains(.05, )
     
+    _01_GOF_sims.py -p <parameters_file> -t <ts_file> -C <n_chains> -i <n_iters>
 
-from _01_GOF_sims import main
+from _01_GOF_sims import do_chains
+
+
+
+df = GOF_sims(True, **dict(n_chains = 10,
+                           N_ITERS = 2,
+                           penalty = 0.05,
+                           fit_penalty = False,
+                           as_of = days_withheld,
+                           df = True,
+                           sample_obs = False))
+                           
+        penalty = kwargs['penalty']
+        fit_penalty = kwargs['fit_penalty']
+        sample_obs = kwargs['sample_obs']
+        as_of_days_ago = kwargs['as_of']
+        return_a_data_frame = kwargs['df'])
 
 
 
