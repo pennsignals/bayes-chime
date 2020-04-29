@@ -146,7 +146,7 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
     return out
 
 
-def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
+def chain(seed, N_ITERS = N_ITERS, shrinkage=None, holdout=0, sample_obs=False):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -206,6 +206,16 @@ def get_test_loss(seed, holdout, shrinkage):
     return chain(seed, shrinkage, holdout)["test_loss"]
 
 
+def do_chains(N_ITERS = 2000, best_penalty = .05, sample_obs = False, n_chains = 8):
+    tuples_for_starmap = [(i, N_ITERS, best_penalty, 0, sample_obs) for i in range(n_chains)]
+    # get the final answer based on the best penalty
+    pool = mp.Pool(mp.cpu_count())
+    chains = pool.starmap(chain, tuples_for_starmap)
+    pool.close()
+    df = pd.concat(chains, ignore_index=True)
+    return df
+
+
 def main():
     global PARAMDIR
     global CENSUS_TS
@@ -261,16 +271,17 @@ def main():
     fit_penalty = options.fit_penalty
     sample_obs = options.sample_obs
     as_of_days_ago = options.as_of
-    dir = get_dir_name(options)
 
-    if not fit_penalty:
-        assert penalty >= 0.05 and penalty < 1
+    dir = get_dir_name(options)
 
     CENSUS_TS, PARAMS = get_inputs(options)
     if CENSUS_TS is None or PARAMS is None:
         print("You must specify either --prefix or --parameters and --ts")
         print(p.format_help())
         exit(1)
+        
+    if not fit_penalty:
+        assert penalty >= 0.05 and penalty < 1
 
     outdir = path.join(dir, "output")
     makedirs(outdir)
@@ -346,19 +357,15 @@ def main():
     elif penalty < 1:
         best_penalty = penalty
 
-    tuples_for_starmap = [(i, best_penalty, 0, sample_obs) for i in range(n_chains)]
+    # fit the actual chains
+    df = do_chains(N_ITERS, best_penalty, sample_obs, n_chains)
 
-    # get the final answer based on the best penalty
-    pool = mp.Pool(mp.cpu_count())
-    chains = pool.starmap(chain, tuples_for_starmap)
-    pool.close()
-
-    df = pd.concat(chains, ignore_index=True)
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
     if options.verbose:
         print(f"Output directory: {dir}")
     else:
         print(dir)
+
 
 
 if __name__ == "__main__":
