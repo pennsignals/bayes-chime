@@ -33,4 +33,7 @@ setup(
     ],
     python_requires=">=3.7",
     keywords=[],
+    entry_points={
+        "console_scripts": ["bayeschime=bayes_chime.normal.scripts.cli:main"],
+    },
 )

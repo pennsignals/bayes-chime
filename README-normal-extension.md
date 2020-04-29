@@ -14,6 +14,43 @@ You can locally install this module using pip
 pip install [--user] [-e] .
 ```
 
+This will install a command line script `bayeschime` you can use to run fits.
+
+For example
+```bash
+> bayeschime -p data/Downtown_parameters.csv -d data/Downtown_ts.csv -y data/data_errors.csv -o output/ -v
+```
+
+```bash
+> bayeschime -h
+usage: bayeschime [-h] -p PARAMETER_FILE -d DATA_FILE [-y DATA_ERROR_FILE]
+                  [-o OUTPUT_DIR] [-e EXTEND_DAYS] [-v]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PARAMETER_FILE, --parameter-file PARAMETER_FILE
+                        File to read prior parameters from. This file is
+                        required.
+  -d DATA_FILE, --data-file DATA_FILE
+                        File to read data from. Must have columns `hosp` and
+                        `vent`. This file is required.
+  -y DATA_ERROR_FILE, --data-error-file DATA_ERROR_FILE
+                        File to read data error policy from. This specifies
+                        relative and absolute errors of `hosp` and `vent`.
+                        E.g., y_sdev = y_mean * rel_err + abs_arr. If not
+                        given, employs empirical Bayes to abs_arr only to
+                        estimate errors.
+  -o OUTPUT_DIR, --output_dir OUTPUT_DIR
+                        The directory to dump results into. This will dump a
+                        pickle file (read in by gvar.load('fit.pickle')) which
+                        completely determines the fit, a prediction csv and a
+                        pdf plot. Default: output
+  -e EXTEND_DAYS, --extend-days EXTEND_DAYS
+                        Extend prediction by number of days. Default: 30
+  -v, --verbose         Add more verbosity
+```
+
+
 ## How to use the module
 
 ### How to propagate uncertainties
