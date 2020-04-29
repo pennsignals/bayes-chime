@@ -206,8 +206,8 @@ def get_test_loss(seed, holdout, shrinkage):
     return chain(seed, shrinkage, holdout)["test_loss"]
 
 
-def do_chains(N_ITERS = 2000, best_penalty = .05, sample_obs = False, n_chains = 8):
-    tuples_for_starmap = [(i, N_ITERS, best_penalty, 0, sample_obs) for i in range(n_chains)]
+def do_chains(n_iters = 2000, best_penalty = .05, sample_obs = False, n_chains = 8):
+    tuples_for_starmap = [(i, n_iters, best_penalty, 0, sample_obs) for i in range(n_chains)]
     # get the final answer based on the best penalty
     pool = mp.Pool(mp.cpu_count())
     chains = pool.starmap(chain, tuples_for_starmap)
