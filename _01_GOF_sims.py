@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+
 from _99_shared_functions import SIR_from_params, qdraw, jumper
 from utils import beta_from_q
 
@@ -116,7 +117,7 @@ def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, s
     # loss for hosp
     residuals_hosp = (
         draw["arr"][: (n_obs - holdout), 3] - train.hosp.values[:NOBS]
-    )  # 5 corresponds with vent census
+    )  # 3 corresponds with hosp census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = 0.01
     sigma2 = np.var(residuals_hosp)
@@ -209,14 +210,20 @@ def get_test_loss(seed, holdout, shrinkage, params = PARAMS, obs = CENSUS_TS):
     return chain(seed, params, obs, shrinkage, holdout)["test_loss"]
 
 
-def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS, best_penalty = None, sample_obs = False, holdout = 0, n_chains = 8):
+def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS, 
+              best_penalty = None, sample_obs = False, holdout = 0, 
+              n_chains = 8, parallel = True):
     tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, sample_obs) for i in range(n_chains)]
     # get the final answer based on the best penalty
-    pool = mp.Pool(mp.cpu_count())
-    chains = pool.starmap(chain, tuples_for_starmap)
-    pool.close()
+    if parallel:
+        pool = mp.Pool(mp.cpu_count())
+        chains = pool.starmap(chain, tuples_for_starmap)
+        pool.close()
+    else:
+        chains = map(lambda x: chain(*x), tuples_for_starmap)
     df = pd.concat(chains, ignore_index=True)
     return df
+
 
 
 def main():
