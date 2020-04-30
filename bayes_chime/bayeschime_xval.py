@@ -48,7 +48,7 @@ import numpy as np
 from _01_GOF_sims import do_chains
 
 datadir = f"{os.getcwd()}/data/"
-
+outdir = f"{os.getcwd()}/output/"
 
 
 def logisitic_social_policy(
@@ -204,6 +204,6 @@ pool = mp.Pool(mp.cpu_count())
 outdicts = pool.starmap(bayes_xval, tuples_for_starmap)
 pool.close()
 
-    
-    
+csvout = pd.DataFrame(outdicts)
+csvout.to_csv(f"{outdir}xval_results.csv")
     
