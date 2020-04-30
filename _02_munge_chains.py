@@ -337,6 +337,7 @@ def main():
     
     # make SEIR projections
     SEIR_df = pd.concat([eat_letters(df, i) for i in ['s', 'e', 'i', 'r']], axis = 1)
+    SEIR_df = pd.concat([pd.Series(pd.date_range(first_day, periods=SEIR_df.shape[0]), name = "date"), SEIR_df], axis = 1)
     SEIR_df.to_csv(path.join(f"{outdir}", f"{prefix}seir_quantiles.csv"))
     
     # logistic stuff
