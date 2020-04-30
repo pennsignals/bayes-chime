@@ -45,6 +45,8 @@ from bayes_chime.normal.scripts.utils import (
 )
 import numpy as np
 
+from _01_GOF_sims import do_chains
+
 datadir = f"{os.getcwd()}/data/"
 
 os.listdir(datadir)
@@ -167,40 +169,30 @@ def bayes_xval(days_withheld = 7, which_hospital = "HUP"):
 
     # merge
     mm = prediction_df.merge(test_set, how = 'left')
-    data.columns = ["obs_"+ i for i in data.columns]
-    data.reset_index(inplace = True)
-    mm = mm.merge(data, how = 'outer')
+    tomerge = copy.deepcopy(data)
+    tomerge.columns = ["obs_"+ i for i in tomerge.columns]
+    tomerge.reset_index(inplace = True)
+    mm = mm.merge(tomerge, how = 'outer')
     
     # compute simple msfe
     hRMSFE = np.mean((mm.hmu - mm.hosp)**2)**.5
     vRMSFE = np.mean((mm.vmu - mm.vent)**2)**.5
 
     # now run MCMC
-    df = do_chains(.05, )
-    
-    _01_GOF_sims.py -p <parameters_file> -t <ts_file> -C <n_chains> -i <n_iters>
-
-from _01_GOF_sims import do_chains
-
-
-
-df = GOF_sims(True, **dict(n_chains = 10,
-                           N_ITERS = 2,
-                           penalty = 0.05,
-                           fit_penalty = False,
-                           as_of = days_withheld,
-                           df = True,
-                           sample_obs = False))
-                           
-        penalty = kwargs['penalty']
-        fit_penalty = kwargs['fit_penalty']
-        sample_obs = kwargs['sample_obs']
-        as_of_days_ago = kwargs['as_of']
-        return_a_data_frame = kwargs['df'])
-
-
-
-import main from _01
-
+    from _01_GOF_sims import do_chains, chain, eval_pos
+    params_raw = pd.read_csv(f"{datadir}{which_hospital}_parameters.csv")
+    df = do_chains(n_iters = 10, params = params_raw, 
+                   obs = read_data(f"{datadir}{which_hospital}_ts.csv"), 
+                   best_penalty = None,  sample_obs = False, 
+                   holdout = days_withheld, n_chains = 8)
     
     
+    
+def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS, best_penalty = None, sample_obs = False, holdout = 0, n_chains = 8):
+    tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, sample_obs) for i in range(n_chains)]
+    # get the final answer based on the best penalty
+    pool = mp.Pool(mp.cpu_count())
+    chains = pool.starmap(chain, tuples_for_starmap)
+    pool.close()
+    df = pd.concat(chains, ignore_index=True)
+    return df
