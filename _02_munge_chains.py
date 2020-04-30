@@ -249,6 +249,15 @@ def read_inputs(paramdir):
     return census_ts, params, args
 
 
+def eat_letters(df, letter):
+    '''This function takes the df output from the chains and makes a dataframe of quantiles of SEIR parameters'''
+    list_of_letter_values = [df[letter].iloc[j][df.offset.iloc[j]:] for j in range(len(df[letter]))]
+    L = np.stack(list_of_letter_values)
+    boxqs = np.quantile(L, [.025, .05, .25, .5, .75, .95, .975], axis = 0)
+    out = pd.DataFrame(boxqs.T, columns = [letter+str(i) for i in [.025, .05, .25, .5, .75, .95, .975]])
+    return(out)
+
+
 def main():
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -325,7 +334,12 @@ def main():
     # remove burn-in
     # TODO: Make 1000 configurable
     df = df.loc[(df.iter > 1000)]
-
+    
+    # make SEIR projections
+    SEIR_df = pd.concat([eat_letters(df, i) for i in ['s', 'e', 'i', 'r']], axis = 1)
+    SEIR_df.to_csv(path.join(f"{outdir}", f"{prefix}seir_quantiles.csv"))
+    
+    # logistic stuff
     qlist = []
     for day in range(census_ts.shape[0]):
         ldist = logistic(
