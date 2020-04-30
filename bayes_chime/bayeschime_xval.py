@@ -49,6 +49,8 @@ from _01_GOF_sims import do_chains
 
 datadir = f"{os.getcwd()}/data/"
 outdir = f"{os.getcwd()}/output/"
+figdir = f"{os.getcwd()}/figures/"
+
 
 
 def logisitic_social_policy(
@@ -210,3 +212,24 @@ pool.close()
 csvout = pd.DataFrame(outdicts)
 csvout.to_csv(f"{outdir}xval_results.csv")
     
+
+csvout = pd.read_csv(f"{outdir}xval_results.csv")
+
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(nrows = len(csvout.which_hospital.unique()))
+fig.set_size_inches(8.5, 25.5)
+for i in range(len(csvout.which_hospital.unique())):
+    ho = csvout.which_hospital.unique()[i]
+    ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
+             csvout.loc[csvout.which_hospital == ho, 'loss_mcmc'], 
+             label = 'MCMC ')
+    ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
+             csvout.loc[csvout.which_hospital == ho, 'loss_approx'], 
+             label = 'gaussian approximation')
+    ax[i].legend()
+    ax[i].set_title(ho)
+    ax[i].set_ylabel("Mean squared forecast error")
+    ax[i].set_xlabel("Number of days to predict")
+    fig.tight_layout()
+    fig.savefig(f"{figdir}xval_plots.pdf")
+
