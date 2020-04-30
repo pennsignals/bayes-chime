@@ -177,15 +177,17 @@ def bayes_xval(days_withheld = 7, which_hospital = "HUP"):
         loss_approx = (hMSFE+vMSFE)/2
     
         # now run MCMC
-        from _01_GOF_sims import do_chains, chain, eval_pos
         params_raw = pd.read_csv(f"{datadir}{which_hospital}_parameters.csv")
         df = do_chains(n_iters = 9000, params = params_raw, 
                        obs = read_data(f"{datadir}{which_hospital}_ts.csv"), 
                        best_penalty = None,  sample_obs = False, 
                        holdout = days_withheld, n_chains = 1, parallel = False)
         df = df.loc[df.iter>1000]
-        loss_mcmc = np.median(df.test_loss)
-        # output
+        arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
+        arrs_test = arrs[:,data.shape[0]:(data.shape[0]+days_withheld),:]
+        median_pred = np.median(arrs_test, axis = 0)
+        loss_mcmc = (np.mean((median_pred[:,3] - test_set.hosp)**2) \
+                     + np.mean((median_pred[:,5] - test_set.vent)**2))/2        # output
         out = dict(which_hospital = which_hospital,
                    days_out = days_withheld,
                    loss_mcmc = loss_mcmc,
@@ -194,6 +196,7 @@ def bayes_xval(days_withheld = 7, which_hospital = "HUP"):
         return out
     except Exception as e:
         print(e)
+
 
 
 tuples_for_starmap = [(i, j) for i in range(1,14) for j in ['PMC', "LGH", "HUP", "CCH", 'PAH', 'MCP']]
