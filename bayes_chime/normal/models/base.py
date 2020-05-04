@@ -126,7 +126,7 @@ class CompartmentModel(ABC):
     def propagate_uncertainties(
         self, meta_pars: Dict[str, FloatLike], dist_pars: Dict[str, NormalDistVar]
     ) -> DataFrame:
-        """Propagates uncertainties through simmulation
+        """Propagates uncertainties through simulation
 
         Arguments:
             meta_pars: Fixed model meta parameters
@@ -136,7 +136,6 @@ class CompartmentModel(ABC):
             DataFrame containing simulation data
         """
         pars = self.parse_input(**meta_pars, **dist_pars)
-
         df = DataFrame(data=self._iterate_simulation(**pars)).set_index("date")
 
         return self.post_process_simulation(df, **pars)
