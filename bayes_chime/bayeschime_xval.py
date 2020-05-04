@@ -44,6 +44,9 @@ from bayes_chime.normal.scripts.utils import (
     get_logger,
 )
 import numpy as np
+import matplotlib.pyplot as plt
+
+from scipy.stats import probplot
 
 from _01_GOF_sims import do_chains
 
@@ -190,46 +193,123 @@ def bayes_xval(days_withheld = 7, which_hospital = "HUP"):
         median_pred = np.median(arrs_test, axis = 0)
         loss_mcmc = (np.mean((median_pred[:,3] - test_set.hosp)**2) \
                      + np.mean((median_pred[:,5] - test_set.vent)**2))/2        # output
+            
+        # prediction quantiles:  the proportion of times the prediction is greater than the mean
+        
+        hq_m = [(arrs_test[:,day,3] > test_set.hosp.iloc[day]).mean() for day in range(days_withheld)]
+        vq_m = [(arrs_test[:,day,5] > test_set.vent.iloc[day]).mean() for day in range(days_withheld)]
+        
+        mmtail = mm.tail(days_withheld)
+        hq_n = [(np.random.normal(mmtail.hmu.iloc[day], mmtail.hsig.iloc[day], 10000) > test_set.hosp.iloc[day]).mean() for day in range(days_withheld)]
+        vq_n = [(np.random.normal(mmtail.vmu.iloc[day], mmtail.vsig.iloc[day], 10000) > test_set.vent.iloc[day]).mean() for day in range(days_withheld)]
+        
+        plotr = dict(hq_m = hq_m,
+                     vq_m = vq_m,
+                     hq_n = hq_n,
+                     vq_n = vq_n)
+        
+        
+               
+        resh_n = mm.hmu[:len(data)+len(test_set)] - np.array(data.hosp.tolist() + test_set.hosp.tolist())
+        resh_m = np.median(arrs[:, :len(data)+len(test_set), 3], axis = 0) - np.array(data.hosp.tolist() + test_set.hosp.tolist())
+        resv_n = mm.vmu[:len(data)+len(test_set)] - np.array(data.vent.tolist() + test_set.vent.tolist())
+        resv_m = np.median(arrs[:, :len(data)+len(test_set), 5], axis = 0) - np.array(data.vent.tolist() + test_set.vent.tolist())
+
+        
+        plotq = dict(resh_n = mm.hmu[:len(data)+len(test_set)] - np.array(data.hosp.tolist() + test_set.hosp.tolist()),
+                     resh_m = np.median(arrs[:, :len(data)+len(test_set), 3], axis = 0) - np.array(data.hosp.tolist() + test_set.hosp.tolist()),
+                     resv_n = mm.vmu[:len(data)+len(test_set)] - np.array(data.vent.tolist() + test_set.vent.tolist()),
+                     resv_m = np.median(arrs[:, :len(data)+len(test_set), 5], axis = 0) - np.array(data.vent.tolist() + test_set.vent.tolist())
+                     )
+                    
+        
         out = dict(which_hospital = which_hospital,
                    days_out = days_withheld,
                    loss_mcmc = loss_mcmc,
-                   loss_approx = loss_approx)
-        print(out)
+                   loss_approx = loss_approx,
+                   plotq = plotq,
+                   plotr = plotr)
         return out
     except Exception as e:
         print(e)
 
 
 
-tuples_for_starmap = [(i, j) for i in range(1,14) for j in ['PMC', "LGH", "HUP", "CCH", 'PAH', 'MCP']]
 
 
-import multiprocessing as mp
-pool = mp.Pool(mp.cpu_count())
-outdicts = pool.starmap(bayes_xval, tuples_for_starmap)
-pool.close()
 
-csvout = pd.DataFrame(outdicts)
-csvout.to_csv(f"{outdir}xval_results.csv")
+def plotr(d):
+    fig, ax = plt.subplots(nrows = 1, ncols = 2)
+    ax[0].plot(d['hq_m'], label = "mcmc")
+    ax[0].plot(d['hq_n'], label = "gaussian")
+    ax[0].legend()
+    ax[0].set_ylabel("quantile")
+    ax[0].set_xlabel("day of past week")
     
+    ax[1].plot(d['vq_m'], label = "mcmc")
+    ax[1].plot(d['vq_n'], label = "gaussian")
+    ax[1].legend()
+    ax[1].set_ylabel("quantile")
+    ax[1].set_xlabel("day of past week")
 
-csvout = pd.read_csv(f"{outdir}xval_results.csv")
+    fig.suptitle(f"{d['which_hospital']}")
+    plt.tight_layout()
 
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(nrows = len(csvout.which_hospital.unique()))
-fig.set_size_inches(8.5, 25.5)
-for i in range(len(csvout.which_hospital.unique())):
-    ho = csvout.which_hospital.unique()[i]
-    ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
-             csvout.loc[csvout.which_hospital == ho, 'loss_mcmc'], 
-             label = 'MCMC ')
-    ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
-             csvout.loc[csvout.which_hospital == ho, 'loss_approx'], 
-             label = 'gaussian approximation')
-    ax[i].legend()
-    ax[i].set_title(ho)
-    ax[i].set_ylabel("Mean squared forecast error")
-    ax[i].set_xlabel("Number of days to predict")
-    fig.tight_layout()
-    fig.savefig(f"{figdir}xval_plots.pdf")
 
+
+def plotq(d):
+    fig, ax = plt.subplots(nrows = 2, ncols = 2)
+    probplot(d['resh_m'], dist = "norm", plot = ax[0,0])
+    ax[0,0].set_title(f"Residuals, hospital, mcmc")
+    probplot(d['resh_n'], dist = "norm", plot = ax[0,1])
+    ax[0,1].set_title(f"Residuals, hospital, gaussian")
+    probplot(d['resv_m'], dist = "norm", plot = ax[1,0])
+    ax[1,0].set_title(f"Residuals, vent, mcmc")
+    probplot(d['resv_n'], dist = "norm", plot = ax[1,1])
+    ax[1,1].set_title(f"Residuals, vent, gaussian")
+    fig.suptitle(f"{d['which_hospital']}")
+    plt.tight_layout()
+
+
+def main():
+
+    tuples_for_starmap = [(7, j) for j in ['PMC', "LGH", "HUP", "CCH", 'PAH', 'MCP']]
+    
+    import multiprocessing as mp
+    pool = mp.Pool(mp.cpu_count())
+    outdicts = pool.starmap(bayes_xval, tuples_for_starmap)
+    pool.close()
+        
+    
+    for i in outdicts:
+        plotr(i['plotr'])
+        plotq(i['plotq'])
+    
+    
+    
+    csvout = pd.DataFrame(outdicts)
+    csvout.to_csv(f"{outdir}xval_results.csv")
+        
+    
+    csvout = pd.read_csv(f"{outdir}xval_results.csv")
+    
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(nrows = len(csvout.which_hospital.unique()))
+    fig.set_size_inches(8.5, 25.5)
+    for i in range(len(csvout.which_hospital.unique())):
+        ho = csvout.which_hospital.unique()[i]
+        ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
+                 csvout.loc[csvout.which_hospital == ho, 'loss_mcmc'], 
+                 label = 'MCMC ')
+        ax[i].plot(csvout.loc[csvout.which_hospital == ho, 'days_out'], 
+                 csvout.loc[csvout.which_hospital == ho, 'loss_approx'], 
+                 label = 'gaussian approximation')
+        ax[i].legend()
+        ax[i].set_title(ho)
+        ax[i].set_ylabel("Mean squared forecast error")
+        ax[i].set_xlabel("Number of days to predict")
+        fig.tight_layout()
+        # fig.savefig(f"{figdir}xval_plots.pdf")
+    
+if __name__ == "__main__":
+    main()
