@@ -124,42 +124,23 @@ def flexible_beta(
 ) -> Dict[str, FloatOrDistVar]:
     '''
     Implements flexible social distancing
-    beta_t = 1 - 1 / (1 + exp(b0 + XB))
+    beta_t = exp(b0+XB)
     '''
     xx = (date - kwargs["dates"][0]).days
-    X = get_IIS_row(xx, len(kwargs['dates']))
     ppars = kwargs.copy()
-    B = np.array([kwargs[i] for i in kwargs.keys() if "I_coef" in i])
-    # the hard-coded 10 makes this equal to one when XB == 0, which it will in the beginning
-    ppars["beta"] = kwargs['beta'] * (1 - 1/(1+np.exp(10 + X@B))) 
+    X = power_spline(xx, kwargs['locs'], 2)
+    ppars["beta"] = kwargs["beta"] * (1-1/(1+np.exp(kwargs['beta_intercept'] + X@kwargs['TI_coef'])))
     return ppars
 
 
-def get_IIS_row(day, ndays, 
-                impulse_indicators = False,
-                step_indicators = False,
-                trend_indicators = True):
-    X = []
-    if impulse_indicators:
-        Ivec = np.zeros(ndays)
-        Ivec[day] = 1
-        X += [Ivec]
-    if step_indicators:
-        Svec = np.zeros(ndays)
-        Svec[:day] = 1
-        X += [Svec]
-    if trend_indicators:
-        Tvec = np.zeros(ndays)
-        Tvec[:day] = np.arange(day , 0, -1)
-        X += [Tvec]
-    vec = np.concatenate(X)
-    return vec
-
-
+def power_spline(x, knots, n):
+    spl = x - np.array(knots)
+    spl[spl<0] = 0
+    return spl**n
 
 
 def prepare_model_parameters(
-    parameters: Dict[str, FloatOrDistVar], data: DataFrame
+    parameters: Dict[str, FloatOrDistVar], data: DataFrame, splines
 ) -> Tuple[Dict[str, FloatLike], Dict[str, NormalDistVar]]:
     """Prepares model input parameters and returns independent and dependent parameters
 
@@ -179,17 +160,20 @@ def prepare_model_parameters(
         expon.ppf(0.99, 1 / pp["incubation_days"].mean)
     )  # Enough time for 95% of exposed to become infected
     # pp["logistic_x0"] += xx["offset"]
+    xx['locs'] = splines
 
-    ## Store the actual first day
+    ## Store the actual first day and the actual last day
     xx["day0"] = data.index.min()
+    xx["day-1"] = data.index.max()
+
     ## And start earlier in time
     xx["dates"] = date_range(
         xx["day0"] - timedelta(xx["offset"]), freq="D", periods=xx["offset"]
     ).union(data.index)
 
     # initialize the B parameters on the flexible beta
-    for i in range(len(xx['dates'])):
-        pp[f'TI_coef{i}'] = 1*pp['pen_beta']
+    pp['TI_coef'] = gvar([pp['pen_beta'].mean for i in range(len(xx['locs']))],
+                         [pp['pen_beta'].sdev for i in range(len(xx['locs']))])
     pp.pop("pen_beta")
     pp.pop('logistic_k')
     pp.pop('logistic_x0')
@@ -224,6 +208,7 @@ def get_yy(data: DataFrame, **err: Dict[str, FloatLike]) -> NormalDistArray:
 From here down, there is a bunch of stuff that gets dumped into global in service of building new features
 '''
 
+
 parameters = read_parameters("data/Downtown_parameters.csv")
 data = read_data("data/Downtown_ts.csv")
 
@@ -232,12 +217,19 @@ model = SEIRModel(
     update_parameters=flexible_beta,
 )
 
-xx, pp = prepare_model_parameters(parameters, data)
+
+knotlocs = np.arange(5, 45, 5)
+parameters['pen_beta'] = gvar(0, .1)
+parameters['beta_intercept'] = gvar(10, 30)
+
+xx, pp = prepare_model_parameters(parameters, data, splines = knotlocs)
 model.fit_start_date = xx["day0"]
 xx["error_infos"] = (
     # read_csv(args.data_error_file).set_index("param")["value"].to_dict()
     read_csv("data/data_errors.csv").set_index("param")["value"].to_dict()
 )
+
+
 
 fit = nonlinear_fit(
     data=(xx, get_yy(data, **xx["error_infos"])),
@@ -246,91 +238,116 @@ fit = nonlinear_fit(
     # debug=args.verbose,
 )
 
-print(fit.p)
 
-xx = fit.x.copy()
-xx["dates"] = xx["dates"].union(
-    date_range(xx["dates"].max(), freq="D", periods=100)
-)
-
-# Generate new prediction
-prediction_df = model.propagate_uncertainties(xx, fit.p)
-prediction_df.index = prediction_df.index.round("H")
-if model.fit_start_date:
-    prediction_df = prediction_df.loc[model.fit_start_date :]
 
 import matplotlib.pyplot as plt
-plt.plot(fit.residuals)
-fit.p
 
-@@@@@@
+X = np.stack([power_spline(i, xx['locs'],2) for i in range(50)])
+beta = fit.p['beta']* (1-1/(1+np.exp(fit.p['beta_intercept'] + X@fit.p['TI_coef'])))
+plt.plot([i.mean for i in beta])
+plt.ylim(0,1)
+plt.ylabel('beta')
+plt.xlabel('days since March 2')
 
-def main():
-    """Executes the command line script
-    """
-    args = parse_args()
 
-    if args.verbose:
-        for handler in LOGGER.handlers:
-            handler.setLevel(DEBUG)
+print(fit.p)
 
-    LOGGER.debug("Received arguments:\n%s", args)
 
-    parameters = read_parameters(args.parameter_file)
-    LOGGER.debug("Read parameters:\n%s", parameters)
+# xx = fit.x.copy()
+# xx["dates"] = xx["dates"].union(
+#     date_range(xx["dates"].max(), freq="D", periods=100)
+# )
 
-    data = read_data(args.data_file)
-    LOGGER.debug("Read data:\n%s", data)
+# import pandas as pd
+# pd.options.display.max_rows = 4000
+# pd.options.display.max_columns = 4000
 
-    model = SEIRModel(
-        fit_columns=["hospital_census", "vent_census"],
-        update_parameters=flexible_beta,
-    )
+# # Generate new prediction
+# prediction_df = model.propagate_uncertainties(xx, fit.p)
+# prediction_df.index = prediction_df.index.round("H")
+# if model.fit_start_date:
+#     prediction_df = prediction_df.loc[model.fit_start_date :]
 
-    xx, pp = prepare_model_parameters(parameters, data)
-    LOGGER.debug("Parsed model meta pars:\n%s", xx)
-    LOGGER.debug("Parsed model priors:\n%s", pp)
-    model.fit_start_date = xx["day0"]
+# plt.plot(fit.residuals)
+# fit.p
 
-    # If empirical bayes is selected to fit the data, this also returns the fit object
-    LOGGER.debug("Starting fit")
-    if args.data_error_file:
-        xx["error_infos"] = (
-            # read_csv(args.data_error_file).set_index("param")["value"].to_dict()
-            read_csv("data/data_errors.csv").set_index("param")["value"].to_dict()
-        )
+
+# plt.plot(prediction_df.infected)
+
+# fit.p
+
+
+# fit.p['TI_coef']
+
+
+# @@@@@@
+
+# def main():
+#     """Executes the command line script
+#     """
+#     args = parse_args()
+
+#     if args.verbose:
+#         for handler in LOGGER.handlers:
+#             handler.setLevel(DEBUG)
+
+#     LOGGER.debug("Received arguments:\n%s", args)
+
+#     parameters = read_parameters(args.parameter_file)
+#     LOGGER.debug("Read parameters:\n%s", parameters)
+
+#     data = read_data(args.data_file)
+#     LOGGER.debug("Read data:\n%s", data)
+
+#     model = SEIRModel(
+#         fit_columns=["hospital_census", "vent_census"],
+#         update_parameters=flexible_beta,
+#     )
+
+#     xx, pp = prepare_model_parameters(parameters, data)
+#     LOGGER.debug("Parsed model meta pars:\n%s", xx)
+#     LOGGER.debug("Parsed model priors:\n%s", pp)
+#     model.fit_start_date = xx["day0"]
+
+#     # If empirical bayes is selected to fit the data, this also returns the fit object
+#     LOGGER.debug("Starting fit")
+#     if args.data_error_file:
+#         xx["error_infos"] = (
+#             # read_csv(args.data_error_file).set_index("param")["value"].to_dict()
+#             read_csv("data/data_errors.csv").set_index("param")["value"].to_dict()
+#         )
         
-        LOGGER.debug("Using y_errs from file:\n%s", xx["error_infos"])
-        fit = nonlinear_fit(
-            data=(xx, get_yy(data, **xx["error_infos"])),
-            prior=pp,
-            fcn=model.fit_fcn,
-            # debug=args.verbose,
-        )
-    else:
-        LOGGER.debug("Employing empirical Bayes to infer y-errors")
-        # This fit varies the size of the y-errors of hosp_min and vent_min
-        # to optimize the description of the data (logGBF)
-        fit_kwargs = lambda error_infos: dict(
-            data=(xx, get_yy(data, hosp_rel=0, vent_rel=0, **error_infos)),
-            prior=pp,
-            fcn=model.fit_fcn,
-            # debug=args.verbose,
-            debug = False,
-        )
-        fit, xx["error_infos"] = empbayes_fit(
-            {"hosp_min": 10, "vent_min": 1}, fit_kwargs
-        )
-        LOGGER.debug("Empbayes y_errs are:\n%s", xx["error_infos"])
+#         LOGGER.debug("Using y_errs from file:\n%s", xx["error_infos"])
+#         fit = nonlinear_fit(
+#             data=(xx, get_yy(data, **xx["error_infos"])),
+#             prior=pp,
+#             fcn=model.fit_fcn,
+#             # debug=args.verbose,
+#         )
+#     else:
+#         LOGGER.debug("Employing empirical Bayes to infer y-errors")
+#         # This fit varies the size of the y-errors of hosp_min and vent_min
+#         # to optimize the description of the data (logGBF)
+#         fit_kwargs = lambda error_infos: dict(
+#             data=(xx, get_yy(data, hosp_rel=0, vent_rel=0, **error_infos)),
+#             prior=pp,
+#             fcn=model.fit_fcn,
+#             # debug=args.verbose,
+#             debug = False,
+#         )
+#         fit, xx["error_infos"] = empbayes_fit(
+#             {"hosp_min": 10, "vent_min": 1}, fit_kwargs
+#         )
+#         LOGGER.debug("Empbayes y_errs are:\n%s", xx["error_infos"])
 
-    LOGGER.info("Fit result:\n%s", fit)
+#     LOGGER.info("Fit result:\n%s", fit)
 
-    dump_results(args.output_dir, fit=fit, model=model, extend_days=args.extend_days)
-    LOGGER.debug("Dumped results to:\n%s", args.output_dir)
+#     dump_results(args.output_dir, fit=fit, model=model, extend_days=args.extend_days)
+#     LOGGER.debug("Dumped results to:\n%s", args.output_dir)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 
 
