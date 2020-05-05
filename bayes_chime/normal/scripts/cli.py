@@ -358,12 +358,15 @@ def main():
                                data, 
                                error_file_path, 
                                k, flexible_beta) for p in penvec for w in winstart]
-        for i in range(len(tuples_for_starmap)):
-            dd = xval_wrapper(*tuples_for_starmap[i])
-            print(dd)
+        
+        print("****************\n\n Look, it works when you run the xval_wrapper in the function scope\n\n")
+        dd = xval_wrapper(*tuples_for_starmap[0])
+    
+        print(dd)
         pool = mp.Pool(mp.cpu_count())
         xval_results = pool.starmap(xval_wrapper, tuples_for_starmap[:10])
         pool.close()
+        print("****************\n\n But it breaks when you pass it to multiprocessing\n\n")
         print(xval_results)
         breakpoint()
         # xval_results[2]
