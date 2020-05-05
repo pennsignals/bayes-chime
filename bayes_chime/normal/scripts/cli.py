@@ -156,6 +156,7 @@ def flexible_beta(
     '''
     xx = (date - kwargs["dates"][0]).days
     ppars = kwargs.copy()
+    print(ppars)
     X = power_spline(xx, kwargs['locs'], kwargs['spline_power'])
     ppars["beta"] = kwargs["beta"] * (1-1/(1+np.exp(kwargs['beta_intercept'] + X@kwargs['beta_splines'])))
     return ppars
@@ -239,23 +240,28 @@ def get_yy(data: DataFrame, **err: Dict[str, FloatLike]) -> NormalDistArray:
 
 
 
-def xval_wrapper(pen, win, parameters, splines, spline_power, 
-                 data, data_error_file_path, k, bf):
+def xval_wrapper(pen, win, parameter_file_path, splines, spline_power, 
+                 data_file_path, data_error_file_path, k, bf):
     try:
+        parameters = read_parameters(parameter_file_path)
+        data = read_data(data_file_path)
         tr = data[:win]
         val = data[win:(win+7)]
         mi = SEIRModel(
             fit_columns=["hospital_census", "vent_census"],
             update_parameters=bf
         )
+        print("A")
         xx, pp = prepare_model_parameters(parameters = parameters, data = tr, 
                                           beta_fun = 'flexible_beta', splines = splines,
                                           spline_power = spline_power)            
+        print("B")
         pp['beta_splines'] = gvar([0 for i in range(k)], [pen for i in range(k)])
         mi.fit_start_date = xx["day0"]
         xx["error_infos"] = (
             read_csv(data_error_file_path).set_index("param")["value"].to_dict()
         )
+        print(pp)
         fit = nonlinear_fit(
             data=(xx, get_yy(tr, **xx["error_infos"])),
             prior=pp,
@@ -266,6 +272,7 @@ def xval_wrapper(pen, win, parameters, splines, spline_power,
         xx["dates"] = xx["dates"].union(
             date_range(xx["dates"].max(), freq="D", periods=8)
         )
+        print("D")
         prediction_df = mi.propagate_uncertainties(xx, fit.p)
         prediction_df.index = prediction_df.index.round("H")
         mg = val.merge(prediction_df, left_index = True, right_index = True)
@@ -285,13 +292,18 @@ def xval_wrapper(pen, win, parameters, splines, spline_power,
                     win = win, 
                     error = e)
 
+
+
+
 def main():
     """Executes the command line script
     """
     
     if __name__ == "__main__":
+        parameter_file_path = 'data/HUP_parameters.csv'
         parameters = read_parameters('data/HUP_parameters.csv')
-        data = read_data('data/HUP_ts.csv')
+        data_file_path = 'data/HUP_ts.csv'
+        data = read_data(data_file_path)
         error_file_path = 'data/data_errors.csv'
         model = SEIRModel(
             fit_columns=["hospital_census", "vent_census"],
@@ -308,32 +320,36 @@ def main():
         beta_fun = 'flexible_beta'
     else:
         args = parse_args()
-    
+        #
+        data_file_path = args.data_file
+        parameter_file_path = args.parameter_file
+        beta_fun = args.beta
+        spline_power = args.spline_power
+        xval = args.cross_validate if args.beta == "flexible_beta" else False
+        error_file_path = args.data_error_file
+        k = args.spline_dimension
+
         if args.verbose:
             for handler in LOGGER.handlers:
                 handler.setLevel(DEBUG)
     
         LOGGER.debug("Received arguments:\n%s", args)
     
-        parameters = read_parameters(args.parameter_file)
+        parameters = read_parameters(parameter_file_path)
         LOGGER.debug("Read parameters:\n%s", parameters)
     
-        data = read_data(args.data_file)
+        data = read_data(data_file_path)
         LOGGER.debug("Read data:\n%s", data)
 
         model = SEIRModel(
             fit_columns=["hospital_census", "vent_census"],
-            update_parameters=flexible_beta if args.beta == "flexible_beta" \
+            update_parameters=flexible_beta if beta_fun == "flexible_beta" \
                                             else logistic_social_policy,
         )
-        beta_fun = args.beta
-        spline_power = args.spline_power
-        xval = args.cross_validate if args.beta == "flexible_beta" else False
-        error_file_path = args.data_error_file
+
 
         # parse the splines
         # TODO:  note this will need to be generalized once we've got more features time-varying
-        k = args.spline_dimension
         if k > 0:
             splines = np.arange(0, 
                                 data.shape[0],
@@ -352,10 +368,10 @@ def main():
         winstart = list(range(30, (data.shape[0]-7)))
         tuples_for_starmap = [(p,
                                w,
-                               parameters,
+                               parameter_file_path,
                                splines, 
                                k, 
-                               data, 
+                               data_file_path, 
                                error_file_path, 
                                k, flexible_beta) for p in penvec for w in winstart]
         
@@ -364,7 +380,7 @@ def main():
     
         print(dd)
         pool = mp.Pool(mp.cpu_count())
-        xval_results = pool.starmap(xval_wrapper, tuples_for_starmap[:10])
+        xval_results = pool.starmap(xval_wrapper, tuples_for_starmap[:2])
         pool.close()
         print("****************\n\n But it breaks when you pass it to multiprocessing\n\n")
         print(xval_results)
