@@ -37,6 +37,7 @@ from bayes_chime.normal.scripts.utils import (
 import copy
 import numpy as np
 import multiprocessing as mp
+import pandas as pd
 
 
 LOGGER = get_logger(__name__)
@@ -156,7 +157,6 @@ def flexible_beta(
     '''
     xx = (date - kwargs["dates"][0]).days
     ppars = kwargs.copy()
-    print(ppars)
     X = power_spline(xx, kwargs['locs'], kwargs['spline_power'])
     ppars["beta"] = kwargs["beta"] * (1-1/(1+np.exp(kwargs['beta_intercept'] + X@kwargs['beta_splines'])))
     return ppars
@@ -241,39 +241,35 @@ def get_yy(data: DataFrame, **err: Dict[str, FloatLike]) -> NormalDistArray:
 
 
 def xval_wrapper(pen, win, parameter_file_path, splines, spline_power, 
-                 data_file_path, data_error_file_path, k, bf):
+                 data_file_path, data_error_file_path, k):
     try:
         parameters = read_parameters(parameter_file_path)
         data = read_data(data_file_path)
         tr = data[:win]
         val = data[win:(win+7)]
+
         mi = SEIRModel(
             fit_columns=["hospital_census", "vent_census"],
-            update_parameters=bf
+            update_parameters=flexible_beta
         )
-        print("A")
         xx, pp = prepare_model_parameters(parameters = parameters, data = tr, 
                                           beta_fun = 'flexible_beta', splines = splines,
-                                          spline_power = spline_power)            
-        print("B")
+                                          spline_power = spline_power)      
         pp['beta_splines'] = gvar([0 for i in range(k)], [pen for i in range(k)])
         mi.fit_start_date = xx["day0"]
         xx["error_infos"] = (
             read_csv(data_error_file_path).set_index("param")["value"].to_dict()
         )
-        print(pp)
         fit = nonlinear_fit(
             data=(xx, get_yy(tr, **xx["error_infos"])),
             prior=pp,
             fcn=mi.fit_fcn,
             debug=False,
         )        
-        print(fit.p)
         xx["dates"] = xx["dates"].union(
             date_range(xx["dates"].max(), freq="D", periods=8)
         )
-        print("D")
-        prediction_df = mi.propagate_uncertainties(xx, fit.p)
+        prediction_df = mi.propagate_uncertainties(xx, fit.palt) # NOTE that i'm using `palt` here.  It works, but I don't know why
         prediction_df.index = prediction_df.index.round("H")
         mg = val.merge(prediction_df, left_index = True, right_index = True)
         # scaling
@@ -291,7 +287,6 @@ def xval_wrapper(pen, win, parameter_file_path, splines, spline_power,
                     pen = pen,
                     win = win, 
                     error = e)
-
 
 
 
@@ -318,6 +313,8 @@ def main():
         win = 40
         pen = .002
         beta_fun = 'flexible_beta'
+        pd.options.display.max_rows = 4000
+        pd.options.display.max_columns = 4000
     else:
         args = parse_args()
         #
@@ -364,7 +361,7 @@ def main():
         assert error_file_path is not None, "Haven't yet implemented cross-validation for empirical bayes.  Please supply a data error file (i.e.: `-y data/data_errors.csv`)"
         # loop through windows, and in each one, forecast one week out.  
         # ensure a minimum of 30 days
-        penvec = 10**np.linspace(-10, 2, 25)
+        penvec = 10**np.linspace(-10, 1, 16)
         winstart = list(range(30, (data.shape[0]-7)))
         tuples_for_starmap = [(p,
                                w,
@@ -373,22 +370,19 @@ def main():
                                k, 
                                data_file_path, 
                                error_file_path, 
-                               k, flexible_beta) for p in penvec for w in winstart]
+                               k) for p in penvec for w in winstart]
         
-        print("****************\n\n Look, it works when you run the xval_wrapper in the function scope\n\n")
         dd = xval_wrapper(*tuples_for_starmap[0])
-    
-        print(dd)
-        pool = mp.Pool(mp.cpu_count())
-        xval_results = pool.starmap(xval_wrapper, tuples_for_starmap[:2])
-        pool.close()
-        print("****************\n\n But it breaks when you pass it to multiprocessing\n\n")
-        print(xval_results)
-        breakpoint()
-        # xval_results[2]
 
-# def xval_wrapper(pen, win, parameters, splines, spline_power, 
-#                  data, data_error_file_path, k):
+        pool = mp.Pool(mp.cpu_count())
+        xval_results = pool.starmap(xval_wrapper, tuples_for_starmap)
+        pool.close()
+        xval_df = pd.DataFrame(xval_results)
+
+
+    @@ next:  roll with penalty that works best.  
+    @@ dump plots of cross-validation statistics        
+    @@ make sure cross-validation isn't too wacky
 
 
 
