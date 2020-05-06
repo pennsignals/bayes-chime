@@ -159,23 +159,29 @@ def plot_fit(  # pylint: disable=R0914
         ncols=ncols, nrows=nrows, figsize=(8 * ncols, 5 * nrows), sharex=True
     )
 
-    gv_kws = {"zorder": 10, "lw": 3, "z_factor": 0.674}
+    gv_kws = {"zorder": 10, "lw": 3}
     gv_line_kws = {"ls": "--"}
     gv_fill_kws = {"alpha": 0.2}
 
     for ir, (row, ax_row) in enumerate(zip(columns, axs)):
         for ic, (col, ax) in enumerate(zip(row, ax_row)):
             name = col.replace("_", " ").capitalize()
-            plot_gvar(
-                x=fit_df.index,
-                y=fit_df[col].values,
-                y_min=0,
-                ax=ax,
-                **gv_kws,
-                color="black",
-                line_kws={**gv_line_kws, "label": "Fit"},
-                fill_kws=gv_fill_kws,
-            )
+
+            for ci_label, (z_fact, alpha) in {
+                "50% CI": (0.674, 0.2),
+                "90% CI": (1.645, 0.1),
+            }.items():
+                plot_gvar(
+                    x=fit_df.index,
+                    y=fit_df[col].values,
+                    y_min=0,
+                    ax=ax,
+                    **gv_kws,
+                    z_factor=z_fact,
+                    color="black",
+                    line_kws={**gv_line_kws},
+                    fill_kws={"alpha": alpha, "label": "Fit " + ci_label},
+                )
 
             if col in data:
                 plot_gvar(
