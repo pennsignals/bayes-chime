@@ -157,14 +157,18 @@ def flexible_beta(
     '''
     xx = (date - kwargs["dates"][0]).days
     ppars = kwargs.copy()
-    X = power_spline(xx, kwargs['locs'], kwargs['spline_power'])
+    X = power_spline(xx, kwargs['knots'], kwargs['spline_power'])
     ppars["beta"] = kwargs["beta"] * (1-1/(1+np.exp(kwargs['beta_intercept'] + X@kwargs['beta_splines'])))
     return ppars
 
 
 def power_spline(x, knots, n):
+    if x > max(knots): #trim the ends of the spline to prevent nonsense extrapolation
+        x = max(knots)+1
     spl = x - np.array(knots)
     spl[spl<0] = 0
+    # # to flatten trends past the last day, set trends equal to max of knots, plus one
+    # spl[spl>(max(knots)+1)] = max(knots)+1
     return spl**n
 
 
@@ -192,7 +196,7 @@ def prepare_model_parameters(
     )  # Enough time for 95% of exposed to become infected
     # pp["logistic_x0"] += xx["offset"]
     xx['beta_fun'] = beta_fun
-    xx['locs'] = splines
+    xx['knots'] = splines
     xx['spline_power'] = spline_power
 
     ## Store the actual first day and the actual last day
@@ -204,10 +208,10 @@ def prepare_model_parameters(
         xx["day0"] - timedelta(xx["offset"]), freq="D", periods=xx["offset"]
     ).union(data.index)
 
-    # initialize the B parameters on the flexible beta
+    # initialize the spline parameters on the flexible beta
     if xx['beta_fun'] == "flexible_beta":
-        pp['beta_splines'] = gvar([pp['pen_beta'].mean for i in range(len(xx['locs']))],
-                             [pp['pen_beta'].sdev for i in range(len(xx['locs']))])
+        pp['beta_splines'] = gvar([pp['pen_beta'].mean for i in range(len(xx['knots']))],
+                             [pp['pen_beta'].sdev for i in range(len(xx['knots']))])
         pp.pop("pen_beta")
         pp.pop('logistic_k')
         pp.pop('logistic_x0')
@@ -266,22 +270,32 @@ def xval_wrapper(pen, win, parameter_file_path, splines, spline_power,
             fcn=mi.fit_fcn,
             debug=False,
         )        
-        xx["dates"] = xx["dates"].union(
-            date_range(xx["dates"].max(), freq="D", periods=8)
-        )
-        prediction_df = mi.propagate_uncertainties(xx, fit.palt) # NOTE that i'm using `palt` here.  It works, but I don't know why
-        prediction_df.index = prediction_df.index.round("H")
-        mg = val.merge(prediction_df, left_index = True, right_index = True)
-        # scaling
-        hosp = (mg.hosp-np.mean(mg.hosp))/np.std(mg.hosp)
-        hosp_hat = (mg.hospital_census.apply(lambda x: x.mean)-np.mean(mg.hosp))/np.std(mg.hosp)
-        vent = (mg.vent-np.mean(mg.vent))/np.std(mg.vent)
-        vent_hat = (mg.vent_census.apply(lambda x: x.mean)-np.mean(mg.vent))/np.std(mg.vent)
-        MSE = mse(hosp, hosp_hat) + mse(vent, vent_hat) 
+        # detect and handle degenerate fits
+        # THIS IS A TEMPORARY HACK
+        splinecoefvec = np.array([fit.p['beta_splines'][i].mean for i in range(len(fit.p['beta_splines']))])
+        cv = np.std(splinecoefvec)/np.mean(splinecoefvec)
+        if cv < .1:
+            MSE = -9999
+            error = "degenerate fit"
+        else:
+            xx = fit.x.copy()
+            xx["dates"] = xx["dates"].union(
+                date_range(xx["dates"].max(), freq="D", periods=8)
+            )
+            prediction_df = mi.propagate_uncertainties(xx, fit.p) 
+            prediction_df.index = prediction_df.index.round("H")
+            mg = val.merge(prediction_df, left_index = True, right_index = True)
+            # scaling
+            hosp = (mg.hosp-np.mean(mg.hosp))/np.std(mg.hosp)
+            hosp_hat = (mg.hospital_census.apply(lambda x: x.mean)-np.mean(mg.hosp))/np.std(mg.hosp)
+            vent = (mg.vent-np.mean(mg.vent))/np.std(mg.vent)
+            vent_hat = (mg.vent_census.apply(lambda x: x.mean)-np.mean(mg.vent))/np.std(mg.vent)
+            MSE = mse(hosp, hosp_hat) + mse(vent, vent_hat) 
+            error = ""
         return dict(mse = MSE,
                     pen = pen,
                     win = win, 
-                    error = "")
+                    error = error)
     except Exception as e:
         return dict(mse = -9999,
                     pen = pen,
@@ -361,8 +375,9 @@ def main():
         assert error_file_path is not None, "Haven't yet implemented cross-validation for empirical bayes.  Please supply a data error file (i.e.: `-y data/data_errors.csv`)"
         # loop through windows, and in each one, forecast one week out.  
         # ensure a minimum of 30 days
-        penvec = 10**np.linspace(-10, 1, 16)
-        winstart = list(range(30, (data.shape[0]-7)))
+        penvec = 10**np.linspace(-10, 5, 16)
+
+        winstart = list(range(data.shape[0]-14, (data.shape[0]-7)))
         tuples_for_starmap = [(p,
                                w,
                                parameter_file_path,
@@ -372,58 +387,75 @@ def main():
                                error_file_path, 
                                k) for p in penvec for w in winstart]
         
-        dd = xval_wrapper(*tuples_for_starmap[0])
-
         pool = mp.Pool(mp.cpu_count())
         xval_results = pool.starmap(xval_wrapper, tuples_for_starmap)
         pool.close()
         xval_df = pd.DataFrame(xval_results)
+        # remove errors
+        errors = (xval_df.mse == -9999).sum()
+        # assert errors < xval_df.shape[0]*.2, "Lot's of errors when doing cross-validation.  Breaking here rather than returning unreliable results."
+        xval_df = xval_df.loc[xval_df.mse >0]
+        xval_df['rmse'] = xval_df.mse**.5
+        penframe = xval_df.groupby(['pen']).agg({'rmse':['mean', 'std']}, as_index = False).reset_index()
+        penframe.columns = ['pen', 'mu', 'sig']
 
-
-    @@ next:  roll with penalty that works best.  
-    @@ dump plots of cross-validation statistics        
-    @@ make sure cross-validation isn't too wacky
-
-
-
-
-
-
-    xx, pp = prepare_model_parameters(parameters = parameters, data = data, 
-                                      beta_fun = beta_fun, splines = splines,
-                                      spline_power = spline_power)
-    LOGGER.debug("Parsed model meta pars:\n%s", xx)
-    LOGGER.debug("Parsed model priors:\n%s", pp)
-    model.fit_start_date = xx["day0"]
-
-    # If empirical bayes is selected to fit the data, this also returns the fit object
-    LOGGER.debug("Starting fit")
-    if args.data_error_file:
-        xx["error_infos"] = (
-            read_csv(error_file_path).set_index("param")["value"].to_dict()
-        )
         
-        LOGGER.debug("Using y_errs from file:\n%s", xx["error_infos"])
-        fit = nonlinear_fit(
-            data=(xx, get_yy(data, **xx["error_infos"])),
-            prior=pp,
-            fcn=model.fit_fcn,
-            # debug=args.verbose,
-        )
-    else:
-        LOGGER.debug("Employing empirical Bayes to infer y-errors")
-        # This fit varies the size of the y-errors of hosp_min and vent_min
-        # to optimize the description of the data (logGBF)
-        fit_kwargs = lambda error_infos: dict(
-            data=(xx, get_yy(data, hosp_rel=0, vent_rel=0, **error_infos)),
-            prior=pp,
-            fcn=model.fit_fcn,
-            debug=args.verbose,
-        )
-        fit, xx["error_infos"] = empbayes_fit(
-            {"hosp_min": 10, "vent_min": 1}, fit_kwargs
-        )
-        LOGGER.debug("Empbayes y_errs are:\n%s", xx["error_infos"])
+        best_penalty = penframe.pen.loc[penframe.mu == min(penframe.mu)].iloc[0]
+        print(f"The best prior sd on the splines is {best_penalty}.  Don't forget to look at the plot of cross-validation statistics (in the output directory) to make sure that there's nothing wacky going on.")
+        parameters['pen_beta'] = gvar(0,best_penalty)
+
+
+    degen_flag = True
+    while degen_flag:
+        xx, pp = prepare_model_parameters(parameters = parameters, data = data, 
+                                          beta_fun = beta_fun, splines = splines,
+                                          spline_power = spline_power)
+        LOGGER.debug("Parsed model meta pars:\n%s", xx)
+        LOGGER.debug("Parsed model priors:\n%s", pp)
+        model.fit_start_date = xx["day0"]
+    
+        # If empirical bayes is selected to fit the data, this also returns the fit object
+        LOGGER.debug("Starting fit")
+        if args.data_error_file:
+            xx["error_infos"] = (
+                read_csv(error_file_path).set_index("param")["value"].to_dict()
+            )
+            
+            LOGGER.debug("Using y_errs from file:\n%s", xx["error_infos"])
+            fit = nonlinear_fit(
+                data=(xx, get_yy(data, **xx["error_infos"])),
+                prior=pp,
+                fcn=model.fit_fcn,
+                # debug=args.verbose,
+            )
+        else:
+            LOGGER.debug("Employing empirical Bayes to infer y-errors")
+            # This fit varies the size of the y-errors of hosp_min and vent_min
+            # to optimize the description of the data (logGBF)
+            fit_kwargs = lambda error_infos: dict(
+                data=(xx, get_yy(data, hosp_rel=0, vent_rel=0, **error_infos)),
+                prior=pp,
+                fcn=model.fit_fcn,
+                debug=args.verbose,
+            )
+            fit, xx["error_infos"] = empbayes_fit(
+                {"hosp_min": 10, "vent_min": 1}, fit_kwargs
+            )
+            LOGGER.debug("Empbayes y_errs are:\n%s", xx["error_infos"])
+        # check for degeneracy
+        splinecoefvec = np.array([fit.p['beta_splines'][i].mean for i in range(len(fit.p['beta_splines']))])
+        cv = np.std(splinecoefvec[1:])/np.mean(splinecoefvec[1:])
+        BI_update = (fit.p['beta_intercept'] - parameters['beta_intercept']).mean
+        coef_OM_range = np.ptp(np.log10(np.abs(splinecoefvec)))
+        if (cv < .1) | (BI_update**2<.1)| (coef_OM_range > 2):
+            print('the best prior sd on the splines led to a degenerate fit.  trimming it by one order of magnitude')
+            curr = np.log10(best_penalty)
+            assert curr > -5, "degenerate solutions all the way down.  Something is broken."
+            best_penalty = 10**(curr-1)
+            print(f"new best prior sd on the splines is {best_penalty}")
+            parameters['pen_beta'] = gvar(0,best_penalty)
+        else:
+            degen_flag = False
 
     LOGGER.info("Fit result:\n%s", fit)
 
@@ -435,3 +467,36 @@ if __name__ == "__main__":
     main()
 
 
+#         import matplotlib.pyplot as plt
+#         # plt.scatter(xval_df.win, xval_df.rmse)
+#         # plt.scatter(np.log10(xval_df.pen), xval_df.rmse)
+#         plt.plot(np.log10(penframe.pen), penframe.mu)
+#         plt.fill_between(x = np.log10(penframe.pen),
+#                          y1 = penframe.mu+penframe.sig,
+#                          y2 = penframe.mu-penframe.sig,
+#                          alpha = .3)
+        
+
+
+# def plot_beta(fit):
+#     x = np.arange(0, len(fit.x['dates']),1)
+#     beta = []
+#     for i in x:
+#         X = power_spline(i, fit.x['knots'], fit.x['spline_power'])
+#         b = fit.p['beta'] * (1-1/(1+np.exp(fit.p['beta_intercept'] + X@fit.p['beta_splines'])))
+#         beta.append(b)
+#     muvec = np.array([i.mean for i in beta])
+#     sdvec = np.array([i.sdev for i in beta])
+#     plt.plot(x, muvec)
+#     plt.fill_between(x = x,
+#                      y1 = muvec+sdvec*1.96,
+#                      y2 = muvec - sdvec*1.96,
+#                      alpha = .3)
+#     plt.xlabel(f"Days since {min(fit.x['dates'])}")
+#     plt.ylabel('beta')
+
+# plot_beta(fit)
+
+#     @@ next:  roll with penalty that works best.  
+#     @@ dump plots of cross-validation statistics        
+#     @@ make sure cross-validation isn't too wacky
