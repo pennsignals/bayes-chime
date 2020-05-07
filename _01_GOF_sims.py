@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+
 from _99_shared_functions import SIR_from_params, qdraw, jumper
 from utils import beta_from_q
 
@@ -85,10 +86,10 @@ def do_shrinkage(pos, shrinkage):
     return regularization_penalty
 
 
-def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
+def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, sample_obs=True):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
-    draw = SIR_from_params(qdraw(pos, PARAMS))
-    obs = deepcopy(CENSUS_TS)
+    n_obs = obs.shape[0]
+    draw = SIR_from_params(qdraw(pos, params))
     if sample_obs:
         ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
         ynoise_h[0] = 0
@@ -101,13 +102,12 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
         test = obs[-holdout:]
     else:
         train = obs
-
     # loss for vent
     LL = 0
     residuals_vent = None
     if train.vent.sum() > 0:
         residuals_vent = (
-            draw["arr"][: (NOBS - holdout), 5] - train.vent.values[:NOBS]
+            draw["arr"][: (n_obs - holdout), 5] - train.vent.values[:NOBS]
         )  # 5 corresponds with vent census
         if any(residuals_vent == 0):
             residuals_vent[residuals_vent == 0] = 0.01
@@ -116,8 +116,8 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
 
     # loss for hosp
     residuals_hosp = (
-        draw["arr"][: (NOBS - holdout), 3] - train.hosp.values[:NOBS]
-    )  # 5 corresponds with vent census
+        draw["arr"][: (n_obs - holdout), 3] - train.hosp.values[:NOBS]
+    )  # 3 corresponds with hosp census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = 0.01
     sigma2 = np.var(residuals_hosp)
@@ -139,14 +139,14 @@ def eval_pos(pos, shrinkage=None, holdout=0, sample_obs=True):
         residuals_hosp=residuals_hosp,
     )
     if holdout > 0:
-        res_te_vent = draw["arr"][(NOBS - holdout) : NOBS, 5] - test.vent.values[:NOBS]
-        res_te_hosp = draw["arr"][(NOBS - holdout) : NOBS, 3] - test.hosp.values[:NOBS]
+        res_te_vent = draw["arr"][(n_obs - holdout) : n_obs, 5] - test.vent.values[:n_obs]
+        res_te_hosp = draw["arr"][(n_obs - holdout) : n_obs, 3] - test.hosp.values[:n_obs]
         test_loss = (np.mean(res_te_hosp ** 2) + np.mean(res_te_vent ** 2)) / 2
         out.update({"test_loss": test_loss})
     return out
 
 
-def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
+def chain(seed, params = PARAMS, obs = CENSUS_TS, n_iters = N_ITERS, shrinkage=None, holdout=0, sample_obs=False):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -154,17 +154,21 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
         sq2 = 1 - shrinkage / 2
         shrinkage = beta_from_q(sq1, sq2)
     current_pos = eval_pos(
-        np.random.uniform(size=PARAMS.shape[0]),
+        np.random.uniform(size=params.shape[0]),
+        params = params,
+        obs = obs, 
         shrinkage=shrinkage,
         holdout=holdout,
         sample_obs=sample_obs,
     )
     outdicts = []
-    U = np.random.uniform(0, 1, N_ITERS)
-    for ii in range(N_ITERS):
+    U = np.random.uniform(0, 1, n_iters)
+    for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
                 jumper(current_pos["pos"], 0.1),
+                params,
+                obs,
                 shrinkage=shrinkage,
                 holdout=holdout,
                 sample_obs=sample_obs,
@@ -178,7 +182,7 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
         # append the relevant results
         out = {
             current_pos["draw"]["parms"].param[i]: current_pos["draw"]["parms"].val[i]
-            for i in range(PARAMS.shape[0])
+            for i in range(params.shape[0])
         }
         # out.update({"arr": current_pos["draw"]["arr"]})
         out.update({"arr": current_pos["draw"]["arr_stoch"]})
@@ -194,16 +198,32 @@ def chain(seed, shrinkage=None, holdout=0, sample_obs=False):
     return pd.DataFrame(outdicts)
 
 
-def loop_over_shrinkage(seed, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
+def loop_over_shrinkage(seed, params = PARAMS, obs = CENSUS_TS, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
     test_loss = []
     for shr in shrvec:
-        chain_out = chain(seed, shr, holdout)
+        chain_out = chain(seed, params, obs, shr, holdout)
         test_loss.append(chain_out["test_loss"])
     return test_loss
 
 
-def get_test_loss(seed, holdout, shrinkage):
-    return chain(seed, shrinkage, holdout)["test_loss"]
+def get_test_loss(seed, holdout, shrinkage, params = PARAMS, obs = CENSUS_TS):
+    return chain(seed, params, obs, shrinkage, holdout)["test_loss"]
+
+
+def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS, 
+              best_penalty = None, sample_obs = False, holdout = 0, 
+              n_chains = 8, parallel = True):
+    tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, sample_obs) for i in range(n_chains)]
+    # get the final answer based on the best penalty
+    if parallel:
+        pool = mp.Pool(mp.cpu_count())
+        chains = pool.starmap(chain, tuples_for_starmap)
+        pool.close()
+    else:
+        chains = map(lambda x: chain(*x), tuples_for_starmap)
+    df = pd.concat(chains, ignore_index=True)
+    return df
+
 
 
 def main():
@@ -261,16 +281,17 @@ def main():
     fit_penalty = options.fit_penalty
     sample_obs = options.sample_obs
     as_of_days_ago = options.as_of
-    dir = get_dir_name(options)
 
-    if not fit_penalty:
-        assert penalty >= 0.05 and penalty < 1
+    dir = get_dir_name(options)
 
     CENSUS_TS, PARAMS = get_inputs(options)
     if CENSUS_TS is None or PARAMS is None:
         print("You must specify either --prefix or --parameters and --ts")
         print(p.format_help())
         exit(1)
+        
+    if not fit_penalty:
+        assert penalty >= 0.05 and penalty < 1
 
     outdir = path.join(dir, "output")
     makedirs(outdir)
@@ -346,19 +367,21 @@ def main():
     elif penalty < 1:
         best_penalty = penalty
 
-    tuples_for_starmap = [(i, best_penalty, 0, sample_obs) for i in range(n_chains)]
+    # fit the actual chains
+    df = do_chains(n_iters = N_ITERS, 
+                   params = PARAMS, 
+                   obs = CENSUS_TS, 
+                   best_penalty = None, 
+                   sample_obs = sample_obs, 
+                   holdout = 0,
+                   n_chains = n_chains)
 
-    # get the final answer based on the best penalty
-    pool = mp.Pool(mp.cpu_count())
-    chains = pool.starmap(chain, tuples_for_starmap)
-    pool.close()
-
-    df = pd.concat(chains, ignore_index=True)
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
     if options.verbose:
         print(f"Output directory: {dir}")
     else:
         print(dir)
+
 
 
 if __name__ == "__main__":

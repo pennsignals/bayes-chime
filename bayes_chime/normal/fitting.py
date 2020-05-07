@@ -37,7 +37,6 @@ def fit_norm_dist_to_dist(dist: Dist) -> NormalDistVar:
     """
     x = linspace(dist.ppf(0.01), dist.ppf(0.99), 100)
     y = dist.pdf(x)
-
     mu, var = dist.stats(moments="mv")
     mu, std = curve_fit(norm.pdf, xdata=x, ydata=y, p0=(mu, sqrt(var)))[0]
 
@@ -52,6 +51,8 @@ def parse_dist(data: Dict[str, Any]) -> Dist:
         dist = beta(a=data["p1"], b=data["p2"])
     elif distribution == "gamma":
         dist = gamma(a=data["p1"], scale=data["p2"])
+    elif distribution == "normal":
+        dist = norm(loc = data['p1'], scale = data['p2'])
     elif distribution == "constant":
         dist = data["base"]
     else:
