@@ -374,7 +374,6 @@ def main():
         print("Doing rolling-window cross-validation")
         assert error_file_path is not None, "Haven't yet implemented cross-validation for empirical bayes.  Please supply a data error file (i.e.: `-y data/data_errors.csv`)"
         # loop through windows, and in each one, forecast one week out.  
-        # ensure a minimum of 30 days
         penvec = 10**np.linspace(-10, 5, 16)
 
         winstart = list(range(data.shape[0]-14, (data.shape[0]-7)))

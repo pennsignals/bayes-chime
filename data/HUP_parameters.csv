@@ -18,4 +18,4 @@ beta,0.25,beta,5,10,SEIR beta parameter (force of infection)
 hosp_capacity,,constant,,,Hospital Bed Capacity
 vent_capacity,196,constant,,,Ventilator Capacity
 pen_beta,0,normal,0,0.01,Variance of L2 penalty on spline terms for beta
-beta_intercept,1,normal,10,20,beta_t = exp(beta_intercept + XB)
+beta_intercept,3,constant,,,beta_t = exp(beta_intercept + XB)
