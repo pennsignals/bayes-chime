@@ -17,11 +17,11 @@ from _99_shared_functions import SIR_from_params, qdraw, jumper
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
-PARAMDIR = None
-CENSUS_TS = None
-PARAMS = None
-NOBS = None
-N_ITERS = None
+# PARAMDIR = None
+# CENSUS_TS = None
+# PARAMS = None
+# NOBS = None
+# N_ITERS = None
 
 
 def get_dir_name(options):
@@ -65,12 +65,12 @@ def get_inputs(options):
     return census_ts, params
 
 
-def write_inputs(options):
-    with open(path.join(PARAMDIR, "args.json"), "w") as f:
+def write_inputs(options, paramdir, census_ts, params):
+    with open(path.join(paramdir, "args.json"), "w") as f:
         json.dump(options.__dict__, f)
-    CENSUS_TS.to_csv(path.join(PARAMDIR, "census_ts.csv"), index=False)
-    PARAMS.to_csv(path.join(PARAMDIR, "params.csv"), index=False)
-    with open(path.join(PARAMDIR, "git.sha"), "w") as f:
+    census_ts.to_csv(path.join(paramdir, "census_ts.csv"), index=False)
+    params.to_csv(path.join(paramdir, "params.csv"), index=False)
+    with open(path.join(paramdir, "git.sha"), "w") as f:
         f.write(Repo(search_parent_directories=True).head.object.hexsha)
 
 
@@ -86,9 +86,10 @@ def do_shrinkage(pos, shrinkage):
     return regularization_penalty
 
 
-def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, sample_obs=True):
+def eval_pos(pos, params, obs, shrinkage=None, holdout=0, sample_obs=True):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
     n_obs = obs.shape[0]
+    nobs = n_obs-holdout
     draw = SIR_from_params(qdraw(pos, params))
     if sample_obs:
         ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
@@ -107,7 +108,7 @@ def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, s
     residuals_vent = None
     if train.vent.sum() > 0:
         residuals_vent = (
-            draw["arr"][: (n_obs - holdout), 5] - train.vent.values[:NOBS]
+            draw["arr"][: (n_obs - holdout), 5] - train.vent.values[:nobs]
         )  # 5 corresponds with vent census
         if any(residuals_vent == 0):
             residuals_vent[residuals_vent == 0] = 0.01
@@ -116,7 +117,7 @@ def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, s
 
     # loss for hosp
     residuals_hosp = (
-        draw["arr"][: (n_obs - holdout), 3] - train.hosp.values[:NOBS]
+        draw["arr"][: (n_obs - holdout), 3] - train.hosp.values[:nobs]
     )  # 3 corresponds with hosp census
     if any(residuals_hosp == 0):
         residuals_hosp[residuals_hosp == 0] = 0.01
@@ -146,7 +147,7 @@ def eval_pos(pos, params = PARAMS, obs = CENSUS_TS, shrinkage=None, holdout=0, s
     return out
 
 
-def chain(seed, params = PARAMS, obs = CENSUS_TS, n_iters = N_ITERS, shrinkage=None, holdout=0, sample_obs=False):
+def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=False):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -163,10 +164,12 @@ def chain(seed, params = PARAMS, obs = CENSUS_TS, n_iters = N_ITERS, shrinkage=N
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
+    posterior_history = []
+    jump_sd = .4 # this is the starting value
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
-                jumper(current_pos["pos"], 0.1),
+                jumper(current_pos["pos"], jump_sd),
                 params,
                 obs,
                 shrinkage=shrinkage,
@@ -193,12 +196,26 @@ def chain(seed, params = PARAMS, obs = CENSUS_TS, n_iters = N_ITERS, shrinkage=N
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
+        # print(current_pos['posterior'])
+        posterior_history.append(current_pos['posterior'])
+        if (ii%100 == 0) and (ii>200):
+            # plt.plot(posterior_history)
+            # plt.show()
+            # diagnose:
+            always_rejecting = len(list(set(posterior_history[-99:])))<10
+            if (ii>2000) and (ii%1000 == 0):
+                flat = np.mean(posterior_history[-999:]) < np.mean(posterior_history[-1990:-999])
+            else:
+                flat = False
+            if always_rejecting or flat:
+                # print("halving jump sd")
+                jump_sd *= .5
 
         # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
     return pd.DataFrame(outdicts)
 
 
-def loop_over_shrinkage(seed, params = PARAMS, obs = CENSUS_TS, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
+def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
     test_loss = []
     for shr in shrvec:
         chain_out = chain(seed, params, obs, shr, holdout)
@@ -206,11 +223,11 @@ def loop_over_shrinkage(seed, params = PARAMS, obs = CENSUS_TS, holdout=7, shrve
     return test_loss
 
 
-def get_test_loss(seed, holdout, shrinkage, params = PARAMS, obs = CENSUS_TS):
+def get_test_loss(seed, holdout, shrinkage, params, obs):
     return chain(seed, params, obs, shrinkage, holdout)["test_loss"]
 
 
-def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS, 
+def do_chains(n_iters, params, obs, 
               best_penalty = None, sample_obs = False, holdout = 0, 
               n_chains = 8, parallel = True):
     tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, sample_obs) for i in range(n_chains)]
@@ -227,11 +244,27 @@ def do_chains(n_iters = 2000, params = PARAMS, obs = CENSUS_TS,
 
 
 def main():
-    global PARAMDIR
-    global CENSUS_TS
-    global PARAMS
-    global NOBS
-    global N_ITERS
+    # if __name__ == "__main__":
+        # n_chains = 8
+        # n_iters = 2000
+        # penalty = .05
+        # fit_penalty = False
+        # sample_obs = False
+        # as_of_days_ago = 0
+        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
+        # # impute vent with the proportion of hosp.  this is a crude hack
+        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        #     census_ts.vent.isna()
+        # ] * np.mean(census_ts.vent / census_ts.hosp)
+        # # import parameters
+        # params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
+        # flexible_beta = True
+    # else:
+    # global PARAMDIR
+    # global CENSUS_TS
+    # global PARAMS
+    # global NOBS
+    # global N_ITERS
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
     p.add("-P", "--prefix", help="prefix for old-style inputs")
@@ -271,21 +304,32 @@ def main():
         help="number of days in the past to project from",
         type=int,
     )
+    p.add(
+        "-b",
+        "--flexible_beta",
+        action="store_true",
+        help="flexible, vs simple, logistic represetation of beta",
+    )
     p.add("-v", "--verbose", action="store_true", help="verbose output")
 
     options = p.parse_args()
 
     n_chains = options.n_chains
-    N_ITERS = options.n_iters
+    n_iters = options.n_iters
     penalty = options.penalty
     fit_penalty = options.fit_penalty
     sample_obs = options.sample_obs
     as_of_days_ago = options.as_of
+    flexible_beta = options.flexible_beta
 
+    if flexible_beta:
+        print("doing flexible beta")
+        
     dir = get_dir_name(options)
 
-    CENSUS_TS, PARAMS = get_inputs(options)
-    if CENSUS_TS is None or PARAMS is None:
+    census_ts, params = get_inputs(options)
+
+    if census_ts is None or params is None:
         print("You must specify either --prefix or --parameters and --ts")
         print(p.format_help())
         exit(1)
@@ -297,35 +341,54 @@ def main():
     makedirs(outdir)
     figdir = path.join(dir, "figures")
     makedirs(figdir)
-    PARAMDIR = path.join(dir, "parameters")
-    makedirs(PARAMDIR)
+    paramdir = path.join(dir, "parameters")
+    makedirs(paramdir)
 
-    write_inputs(options)
+    write_inputs(options, paramdir, census_ts, params)
 
-    NOBS = CENSUS_TS.shape[0] - as_of_days_ago
+    nobs = census_ts.shape[0] - as_of_days_ago
+
+    # expand out the spline terms and append them to params
+    # also add the number of observations, as i'll need this for evaluating the knots
+    if flexible_beta == True:
+        beta_splines = pd.DataFrame([{
+            "param": f"beta_spline_coef_{i}",
+            'base':0,
+            "distribution":"norm",
+            "p1":0,
+            "p2":float(params.p2.loc[params.param == 'beta_spline_prior']),
+            'description':'spile term for beta'
+            } for i in range(int(params.base.loc[params.param == "beta_spline_dimension"]))])
+        nobsd = pd.DataFrame(dict(param = 'nobs', base = nobs, 
+                                  distribution = "constant", p1 = np.nan, 
+                                  p2 = np.nan, 
+                                  description = 'number of observations(days)'), 
+                             index = [0])
+        params = pd.concat([params, beta_splines, nobsd])
+    
 
     # rolling window variance
     rwstd = []
-    for i in range(NOBS):
-        y = CENSUS_TS.hosp[:i][-7:]
+    for i in range(nobs):
+        y = census_ts.hosp[:i][-7:]
         rwstd.append(np.std(y))
-    CENSUS_TS["hosp_rwstd"] = np.nan
-    CENSUS_TS.loc[range(NOBS), "hosp_rwstd"] = rwstd
+    census_ts["hosp_rwstd"] = np.nan
+    census_ts.loc[range(nobs), "hosp_rwstd"] = rwstd
 
     rwstd = []
-    for i in range(NOBS):
-        y = CENSUS_TS.vent[:i][-7:]
+    for i in range(nobs):
+        y = census_ts.vent[:i][-7:]
         rwstd.append(np.std(y))
-    CENSUS_TS["vent_rwstd"] = np.nan
-    CENSUS_TS.loc[range(NOBS), "vent_rwstd"] = rwstd
+    census_ts["vent_rwstd"] = np.nan
+    census_ts.loc[range(nobs), "vent_rwstd"] = rwstd
 
     if sample_obs:
         fig = plt.figure()
-        plt.plot(CENSUS_TS.vent, color="red")
+        plt.plot(census_ts.vent, color="red")
         plt.fill_between(
-            x=list(range(NOBS)),
-            y1=CENSUS_TS.vent + 2 * CENSUS_TS.vent_rwstd,
-            y2=CENSUS_TS.vent - 2 * CENSUS_TS.vent_rwstd,
+            x=list(range(nobs)),
+            y1=census_ts.vent + 2 * census_ts.vent_rwstd,
+            y2=census_ts.vent - 2 * census_ts.vent_rwstd,
             alpha=0.3,
             lw=2,
             edgecolor="k",
@@ -368,13 +431,14 @@ def main():
         best_penalty = penalty
 
     # fit the actual chains
-    df = do_chains(n_iters = N_ITERS, 
-                   params = PARAMS, 
-                   obs = CENSUS_TS, 
+    df = do_chains(n_iters = n_iters, 
+                   params = params, 
+                   obs = census_ts, 
                    best_penalty = None, 
                    sample_obs = sample_obs, 
-                   holdout = 0,
-                   n_chains = n_chains)
+                   holdout = as_of_days_ago,
+                   n_chains = n_chains,
+                   parallel=True)
 
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
     if options.verbose:

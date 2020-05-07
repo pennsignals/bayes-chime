@@ -45,6 +45,10 @@ def sim_sir(
     R,
     alpha,
     beta,
+    beta_spline,
+    beta_k,
+    beta_spline_power,
+    nobs,
     gamma,
     nu,
     n_days,
@@ -56,10 +60,17 @@ def sim_sir(
 ):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
+    if len(beta_spline) > 0:
+        knots = np.linspace(nobs/beta_k/2, nobs-nobs/beta_k/2, beta_k)
     for day in range(n_days):
         y = S, E, I, R
-        # evaluate logistic
-        sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
+        # evaluate splines
+        if len(beta_spline) > 0:
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline + 4 # the plus 4 os a temporary hack
+            sd = logistic(L = 1, k=1, x0 = 0, x=XB)
+        else:
+            sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         sd *= reopenfn(day, reopen_day, reopen_speed)
         beta_t = beta * (1 - sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
@@ -70,6 +81,20 @@ def sim_sir(
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
     return s, e, i, r
 
+
+def power_spline(x, knots, n, xtrim):
+    if x > xtrim: #trim the ends of the spline to prevent nonsense extrapolation
+        x = xtrim + 1
+    spl = x - np.array(knots)
+    spl[spl<0] = 0
+    # # to flatten trends past the last day, set trends equal to max of knots, plus one
+    # spl[spl>(max(knots)+1)] = max(knots)+1
+    return spl**n
+
+'''
+Plan:  
+    beta_t = L/(1 + np.exp(XB))
+'''
 
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
@@ -94,6 +119,8 @@ def qdraw(qvec, p_df):
                 p = (qvec[i], p_df.p1.iloc[i], p_df.p2.iloc[i])
             elif p_df.distribution.iloc[i] == "uniform":
                 p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i] + p_df.p2.iloc[i])
+            elif p_df.distribution.iloc[i] == "norm":
+                p = (qvec[i], p_df.p1.iloc[i], p_df.p2.iloc[i])
             out = dict(
                 param=p_df.param.iloc[i],
                 val=getattr(sps, p_df.distribution.iloc[i]).ppf(*p),
@@ -142,6 +169,18 @@ def SIR_from_params(p_df):
     beta = float(
         p_df.val.loc[p_df.param == "beta"]
     )  # get beta directly rather than via doubling time
+    # assemble the coefficient vector for the splines
+    beta_spline = np.array(p_df.val.loc[p_df.param.str.contains('beta_spline_coef')]) #this evaluates to an empty array if it's not in the params
+    if len(beta_spline) > 0:
+        beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
+        nobs = float(p_df.val.loc[p_df.param == "nobs"])
+        beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
+    else:
+        beta_spline_power = None
+        beta_k = None
+        nobs = None
+        
+
     nu = float(p_df.val.loc[p_df.param == "nu"])
 
     reopen_day, reopen_speed = 1000, 0.0
@@ -176,6 +215,10 @@ def SIR_from_params(p_df):
         R=0.0,
         alpha=alpha,
         beta=beta,
+        beta_spline = beta_spline,
+        beta_k = beta_k,
+        beta_spline_power = beta_spline_power,
+        nobs = nobs,
         gamma=gamma,
         nu=nu,
         n_days=n_days + offset,

@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from _99_shared_functions import power_spline
 from utils import DirectoryType
 
 # plot of logistic curves
@@ -317,6 +318,9 @@ def main():
         vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
         hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
+# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_07_18_01_10/output/chains.json.bz2", lines = True)
+# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_07_18_01_10/parameters/census_ts.csv')
+
     # Chains
     df = pd.read_json(
         path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True
@@ -327,12 +331,25 @@ def main():
     df = df.loc[(df.iter > 1000)]
 
     qlist = []
-    for day in range(census_ts.shape[0]):
-        ldist = logistic(
-            df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
-        )
-        qlist.append(np.quantile(ldist, [0.05, 0.5, 0.95]))
-
+    if 'beta_spline_coef_0' in df.columns:
+        nobs = census_ts.shape[0]
+        beta_k = params.loc[params.param == 'beta_k', 'base']
+        beta_spline_power = params.loc[params.param == 'beta_spline_power', 'base']
+        knots = np.linspace(nobs/beta_k/2, nobs-nobs/beta_k/2, beta_k)
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])
+        for day in range(nobs):
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline_coefs.T
+            sd = logistic(L = 1, k=1, x0 = 0, x=XB)
+            qlist.append(np.quantile(sd, [0.05, .5, .95]))
+            # plt.hist(sd)
+    else:
+        for day in range(census_ts.shape[0]):
+            ldist = logistic(
+                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+            )
+            qlist.append(np.quantile(ldist, [0.05, 0.5, 0.95]))
+        
     # logistic SD plot
     qmat = np.vstack(qlist)
     fig = plt.figure()
