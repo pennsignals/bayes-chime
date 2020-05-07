@@ -137,7 +137,6 @@ class CompartmentModel(ABC):
         """
         pars = self.parse_input(**meta_pars, **dist_pars)
         df = DataFrame(data=self._iterate_simulation(**pars)).set_index("date")
-
         return self.post_process_simulation(df, **pars)
 
     def _iterate_simulation(
@@ -181,7 +180,6 @@ class CompartmentModel(ABC):
         df = self.propagate_uncertainties(xx, pp)
         if self.fit_start_date:
             df = df.loc[self.fit_start_date :]
-
         if self.fit_columns:
             df = df[self.fit_columns]
 

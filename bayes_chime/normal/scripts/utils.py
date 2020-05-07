@@ -15,6 +15,7 @@ from bayes_chime.normal.utilities import FloatOrDistVar
 from bayes_chime.normal.models.base import CompartmentModel
 from bayes_chime.normal.fitting import fit_norm_to_prior_df
 from bayes_chime.normal.plotting import plot_fit
+import numpy as np
 
 PARAMETER_MAP = {
     "hosp_prop": "hospital_probability",
@@ -129,3 +130,6 @@ def dump_results(
         data={key: fit.y.T[ii] for ii, key in enumerate(model.fit_columns)},
     )
     fig.savefig(path.join(dir_name, "forecast.pdf"), bbox_inches="tight")
+
+def mse(x,y):
+    return np.mean((x-y)**2)
