@@ -295,7 +295,7 @@ def SD_plot(census_ts, params, df, prefix = ""):
         edgecolor="k",
     )
     plt.ylabel(f"Relative (effective) social contact")
-    plt.xlabel(f"Days since {first_day}")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
     plt.ylim(0, 1)
     fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
 
@@ -363,7 +363,7 @@ def main():
     figdir = path.join(dir, "figures")
 
     census_ts, params, args = read_inputs(paramdir)
-    first_day = 'march 16'
+    first_day = census_ts[census_ts.columns[0]].values[0] #weird chack for non-ascii characters in the input file
 
     # TODO: This needs to be configurable based on the time period specificed
     as_of_days_ago = args["as_of"]
