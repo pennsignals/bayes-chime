@@ -45,6 +45,7 @@ def sim_sir(
     R,
     alpha,
     beta,
+    b0,
     beta_spline,
     beta_k,
     beta_spline_power,
@@ -61,14 +62,14 @@ def sim_sir(
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
     if len(beta_spline) > 0:
-        knots = np.linspace(nobs/beta_k/2, nobs-nobs/beta_k/2, beta_k)
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
     for day in range(n_days):
         y = S, E, I, R
         # evaluate splines
         if len(beta_spline) > 0:
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            XB = X@beta_spline + 4 # the plus 4 os a temporary hack
-            sd = logistic(L = 1, k=1, x0 = 0, x=XB)
+            XB = X@beta_spline # the plus 4 os a temporary hack
+            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         sd *= reopenfn(day, reopen_day, reopen_speed)
@@ -172,6 +173,7 @@ def SIR_from_params(p_df):
     # assemble the coefficient vector for the splines
     beta_spline = np.array(p_df.val.loc[p_df.param.str.contains('beta_spline_coef')]) #this evaluates to an empty array if it's not in the params
     if len(beta_spline) > 0:
+        b0 = float(p_df.val.loc[p_df.param == "b0"])
         beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
         nobs = float(p_df.val.loc[p_df.param == "nobs"])
         beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
@@ -179,6 +181,7 @@ def SIR_from_params(p_df):
         beta_spline_power = None
         beta_k = None
         nobs = None
+        b0 = None
         
 
     nu = float(p_df.val.loc[p_df.param == "nu"])
@@ -215,6 +218,7 @@ def SIR_from_params(p_df):
         R=0.0,
         alpha=alpha,
         beta=beta,
+        b0=b0,
         beta_spline = beta_spline,
         beta_k = beta_k,
         beta_spline_power = beta_spline_power,

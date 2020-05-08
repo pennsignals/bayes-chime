@@ -9,7 +9,7 @@ import pandas as pd
 
 from _99_shared_functions import power_spline
 from utils import DirectoryType
-
+import warnings
 # plot of logistic curves
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
@@ -288,9 +288,16 @@ def main():
         action="store_true",
         help="plot capacity as a horizontal line",
     )
+    p.add(
+        "-b",
+        "--burn_in",
+        type=int,
+        help="how much of the burn-in to discard",
+        default = 2000
+    )
 
     options = p.parse_args()
-
+    burn_in = options.burn_in
     prefix = ""
     if options.prefix is not None:
         prefix = f"{options.prefix}_"
@@ -318,8 +325,9 @@ def main():
         vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
         hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
-# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_07_18_01_10/output/chains.json.bz2", lines = True)
-# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_07_18_01_10/parameters/census_ts.csv')
+# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/output/chains.json.bz2", lines = True)
+# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/parameters/census_ts.csv')
+# params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/parameters/params.csv')
 
     # Chains
     df = pd.read_json(
@@ -327,20 +335,27 @@ def main():
     )
     print(f"READ chains file: {df.shape[0]} total iterations")
     # remove burn-in
-    # TODO: Make 1000 configurable
-    df = df.loc[(df.iter > 1000)]
+    
+    iters_remaining = df.iter.max()-burn_in
+    assert iters_remaining>100, f"Breaking here: you are casting aside {burn_in} iterations as burn-in, but there are only {df.iter.max()} iteratons per chain"
+    if iters_remaining < 1000:
+        warnings.warn(f"You're only using {iters_remaining} iterations per chain.  This may not be fully cromulent.")
+    df = df.loc[(df.iter > burn_in)]
+
 
     qlist = []
     if 'beta_spline_coef_0' in df.columns:
         nobs = census_ts.shape[0]
-        beta_k = params.loc[params.param == 'beta_k', 'base']
-        beta_spline_power = params.loc[params.param == 'beta_spline_power', 'base']
-        knots = np.linspace(nobs/beta_k/2, nobs-nobs/beta_k/2, beta_k)
-        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])
+        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+        b0 = np.array(df.b0)
+
         for day in range(nobs):
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
             XB = X@beta_spline_coefs.T
-            sd = logistic(L = 1, k=1, x0 = 0, x=XB)
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
             qlist.append(np.quantile(sd, [0.05, .5, .95]))
             # plt.hist(sd)
     else:
@@ -349,7 +364,8 @@ def main():
                 df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
             )
             qlist.append(np.quantile(ldist, [0.05, 0.5, 0.95]))
-        
+
+
     # logistic SD plot
     qmat = np.vstack(qlist)
     fig = plt.figure()

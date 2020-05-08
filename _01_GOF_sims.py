@@ -1,3 +1,4 @@
+
 from copy import deepcopy
 from datetime import datetime
 from os import getcwd, path, makedirs
@@ -23,7 +24,6 @@ LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
 # NOBS = None
 # N_ITERS = None
 
-
 def get_dir_name(options):
     now = datetime.now()
     dir = now.strftime("%Y_%m_%d_%H_%M_%S")
@@ -47,17 +47,17 @@ def get_inputs(options):
         prefix = options.prefix
         datadir = path.join(f"{getcwd()}", "data")
         # import the census time series and set the zero day to be the first instance of zero
-        census_ts = pd.read_csv(path.join(f"{datadir}", f"{prefix}_ts.csv"))
+        census_ts = pd.read_csv(path.join(f"{datadir}", f"{prefix}_ts.csv"), encoding='latin-1')
         # impute vent with the proportion of hosp.  this is a crude hack
         census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
             census_ts.vent.isna()
         ] * np.mean(census_ts.vent / census_ts.hosp)
         # import parameters
-        params = pd.read_csv(path.join(f"{datadir}", f"{prefix}_parameters.csv"))
+        params = pd.read_csv(path.join(f"{datadir}", f"{prefix}_parameters.csv"), encoding = 'latin-1')
     if options.parameters is not None:
-        params = pd.read_csv(options.parameters)
+        params = pd.read_csv(options.parameters, encoding = 'latin-1')
     if options.ts is not None:
-        census_ts = pd.read_csv(options.ts)
+        census_ts = pd.read_csv(options.ts, encoding = 'latin-1')
         # impute vent with the proportion of hosp.  this is a crude hack
         census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
             census_ts.vent.isna()
@@ -165,7 +165,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
     posterior_history = []
-    jump_sd = .4 # this is the starting value
+    jump_sd = .2 # this is the starting value
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
@@ -199,8 +199,6 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
         # print(current_pos['posterior'])
         posterior_history.append(current_pos['posterior'])
         if (ii%100 == 0) and (ii>200):
-            # plt.plot(posterior_history)
-            # plt.show()
             # diagnose:
             always_rejecting = len(list(set(posterior_history[-99:])))<10
             if (ii>2000) and (ii%1000 == 0):
@@ -208,8 +206,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
             else:
                 flat = False
             if always_rejecting or flat:
-                # print("halving jump sd")
-                jump_sd *= .5
+                jump_sd *= .9
 
         # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
     return pd.DataFrame(outdicts)
@@ -322,10 +319,14 @@ def main():
     as_of_days_ago = options.as_of
     flexible_beta = options.flexible_beta
 
+
     if flexible_beta:
         print("doing flexible beta")
+    else:
+        print('doing logistic')
         
     dir = get_dir_name(options)
+    print(dir)
 
     census_ts, params = get_inputs(options)
 
