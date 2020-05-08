@@ -243,22 +243,22 @@ def do_chains(n_iters, params, obs,
 
 
 def main():
-    if __name__ == "__main__":
-        n_chains = 8
-        n_iters = 2000
-        penalty = .05
-        fit_penalty = False
-        sample_obs = False
-        as_of_days_ago = 0
-        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
-        # impute vent with the proportion of hosp.  this is a crude hack
-        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-            census_ts.vent.isna()
-        ] * np.mean(census_ts.vent / census_ts.hosp)
-        # import parameters
-        params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
-        flexible_beta = True
-        fit_penalty = True
+    # if __name__ == "__main__":
+    #     n_chains = 8
+    #     n_iters = 2000
+    #     penalty = .05
+    #     fit_penalty = False
+    #     sample_obs = False
+    #     as_of_days_ago = 0
+    #     census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
+    #     # impute vent with the proportion of hosp.  this is a crude hack
+    #     census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+    #         census_ts.vent.isna()
+    #     ] * np.mean(census_ts.vent / census_ts.hosp)
+    #     # import parameters
+    #     params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
+    #     flexible_beta = True
+    #     fit_penalty = True
     # else:
     # global PARAMDIR
     # global CENSUS_TS
