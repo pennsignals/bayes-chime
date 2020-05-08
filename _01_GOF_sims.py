@@ -190,6 +190,10 @@ def chain(seed, params = PARAMS, obs = CENSUS_TS, n_iters = N_ITERS, shrinkage=N
         out.update({"chain": seed})
         out.update({"posterior": proposed_pos["posterior"]})
         out.update({"offset": current_pos["draw"]["offset"]})
+        out.update({"s": current_pos['draw']['s']})
+        out.update({"e": current_pos['draw']['e']})
+        out.update({"i": current_pos['draw']['i']})
+        out.update({"r": current_pos['draw']['r']})
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
