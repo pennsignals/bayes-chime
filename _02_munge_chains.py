@@ -250,6 +250,56 @@ def read_inputs(paramdir):
     return census_ts, params, args
 
 
+def SD_plot(census_ts, params, df, prefix = ""):
+    qlist = []
+    if 'beta_spline_coef_0' in df.columns:
+        nobs = census_ts.shape[0]
+        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+        b0 = np.array(df.b0)
+
+        for day in range(nobs):
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline_coefs.T
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
+            qlist.append(np.quantile(sd, [0.05, .5, .95]))
+            # plt.hist(sd)
+    else:
+        for day in range(census_ts.shape[0]):
+            ldist = logistic(
+                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+            )
+            qlist.append(np.quantile(ldist, [0.05,.25, 0.5, .75, 0.95]))
+            
+    # logistic SD plot
+    qmat = np.vstack(qlist)
+    fig = plt.figure()
+
+    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 1])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=1 - qmat[:, 0],
+        y2=1 - qmat[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=1 - qmat[:, 1],
+        y2=1 - qmat[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Relative (effective) social contact")
+    plt.xlabel(f"Days since {census_ts['date'].values[0]}")
+    plt.ylim(0, 1)
+    fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
+
+
 def main():
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -342,48 +392,10 @@ def main():
         warnings.warn(f"You're only using {iters_remaining} iterations per chain.  This may not be fully cromulent.")
     df = df.loc[(df.iter > burn_in)]
 
-
-    qlist = []
-    if 'beta_spline_coef_0' in df.columns:
-        nobs = census_ts.shape[0]
-        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
-        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
-        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
-        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
-        b0 = np.array(df.b0)
-
-        for day in range(nobs):
-            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            XB = X@beta_spline_coefs.T
-            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
-            qlist.append(np.quantile(sd, [0.05, .5, .95]))
-            # plt.hist(sd)
-    else:
-        for day in range(census_ts.shape[0]):
-            ldist = logistic(
-                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
-            )
-            qlist.append(np.quantile(ldist, [0.05, 0.5, 0.95]))
-
-
-    # logistic SD plot
-    qmat = np.vstack(qlist)
-    fig = plt.figure()
-
-    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 1])
-    plt.fill_between(
-        x=list(range(census_ts.shape[0])),
-        y1=1 - qmat[:, 0],
-        y2=1 - qmat[:, 2],
-        alpha=0.3,
-        lw=2,
-        edgecolor="k",
-    )
-    plt.ylabel(f"Relative (effective) social contact")
-    plt.xlabel(f"Days since {first_day}")
-    plt.ylim(0, 1)
-    fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
-
+    # make the social distancing plot
+    SD_plot(census_ts, params, df, prefix)
+    
+    ##
     for howfar in n_days:
         plt_predictive(
             df,

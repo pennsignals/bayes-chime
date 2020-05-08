@@ -220,8 +220,10 @@ def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0
     return test_loss
 
 
-def get_test_loss(seed, holdout, shrinkage, params, obs):
-    return chain(seed, params, obs, shrinkage, holdout)["test_loss"]
+def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs):
+    print(shrinkage)
+    return chain(n_iters = n_iters, seed = seed, params=params, 
+                 obs=obs, shrinkage=shrinkage, holdout=holdout)["test_loss"]
 
 
 def do_chains(n_iters, params, obs, 
@@ -241,21 +243,22 @@ def do_chains(n_iters, params, obs,
 
 
 def main():
-    # if __name__ == "__main__":
-        # n_chains = 8
-        # n_iters = 2000
-        # penalty = .05
-        # fit_penalty = False
-        # sample_obs = False
-        # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
-        # # impute vent with the proportion of hosp.  this is a crude hack
-        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        #     census_ts.vent.isna()
-        # ] * np.mean(census_ts.vent / census_ts.hosp)
-        # # import parameters
-        # params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
-        # flexible_beta = True
+    if __name__ == "__main__":
+        n_chains = 8
+        n_iters = 2000
+        penalty = .05
+        fit_penalty = False
+        sample_obs = False
+        as_of_days_ago = 0
+        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
+        flexible_beta = True
+        fit_penalty = True
     # else:
     # global PARAMDIR
     # global CENSUS_TS
@@ -397,17 +400,18 @@ def main():
         plt.title("week-long rolling variance")
         fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
 
+
     if fit_penalty:
         pen_vec = np.linspace(0.05, 0.95, 10)
-        tuples_for_starmap = [(i, 7, j) for i in range(n_chains) for j in pen_vec]
+        tuples_for_starmap = [(3000, i, 7, j, params, census_ts) for i in range(n_chains) for j in pen_vec]
         pool = mp.Pool(mp.cpu_count())
         shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
         pool.close()
         # put together the mp results
         chain_dict = {i: [] for i in pen_vec}
         for i in range(len(tuples_for_starmap)):
-            chain_dict[tuples_for_starmap[i][2]] += shrinkage_chains[i][
-                1000:
+            chain_dict[tuples_for_starmap[i][3]] += shrinkage_chains[i][
+                2000:
             ].tolist()  # get the penalty value
 
         mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
