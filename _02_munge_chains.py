@@ -250,7 +250,7 @@ def read_inputs(paramdir):
     return census_ts, params, args
 
 
-def SD_plot(census_ts, params, df, prefix = ""):
+def SD_plot(census_ts, params, df, figdir, prefix = ""):
     qlist = []
     if 'beta_spline_coef_0' in df.columns:
         nobs = census_ts.shape[0]
@@ -393,7 +393,7 @@ def main():
     df = df.loc[(df.iter > burn_in)]
 
     # make the social distancing plot
-    SD_plot(census_ts, params, df, prefix)
+    SD_plot(census_ts, params, df, figdir, prefix)
     
     ##
     for howfar in n_days:
