@@ -264,7 +264,7 @@ def SD_plot(census_ts, params, df, figdir, prefix = ""):
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
             XB = X@beta_spline_coefs.T
             sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
-            qlist.append(np.quantile(sd, [0.05, .5, .95]))
+            qlist.append(np.quantile(sd, [0.05,.25, 0.5, .75, 0.95]))
             # plt.hist(sd)
     else:
         for day in range(census_ts.shape[0]):
@@ -375,9 +375,9 @@ def main():
         vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
         hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
-# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/output/chains.json.bz2", lines = True)
-# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/parameters/census_ts.csv')
-# params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_11_08_59_LGH/parameters/params.csv')
+# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/output/chains.json.bz2", lines = True)
+# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/census_ts.csv')
+# params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/params.csv')
 
     # Chains
     df = pd.read_json(
