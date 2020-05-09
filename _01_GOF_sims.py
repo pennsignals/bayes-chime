@@ -84,13 +84,14 @@ def loglik(r):
     ) * np.sum(r ** 2)
 
 
-def do_shrinkage(pos, shrinkage):
+def do_shrinkage(pos, shrinkage, shrink_mask):
     densities = sps.beta.pdf(pos, a=shrinkage[0], b=shrinkage[1])
+    densities *= shrink_mask
     regularization_penalty = -np.sum(np.log(densities))
     return regularization_penalty
 
 
-def eval_pos(pos, params, obs, shrinkage=None, holdout=0, sample_obs=True):
+def eval_pos(pos, params, obs, shrinkage=None, shrink_mask = None, holdout=0, sample_obs=True):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
     n_obs = obs.shape[0]
     nobs = n_obs-holdout
@@ -134,7 +135,7 @@ def eval_pos(pos, params, obs, shrinkage=None, holdout=0, sample_obs=True):
     # the penalty gets subtracted off of the posterior
     if shrinkage is not None:
         assert (str(type(shrinkage).__name__) == "ndarray") & (len(shrinkage) == 2)
-        posterior -= do_shrinkage(pos, shrinkage)
+        posterior -= do_shrinkage(pos, shrinkage, shrink_mask)
 
     out = dict(
         pos=pos,
@@ -158,11 +159,13 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
         sq1 = shrinkage / 2
         sq2 = 1 - shrinkage / 2
         shrinkage = beta_from_q(sq1, sq2)
+        shrink_mask= np.array([1 if "beta_spline_coef" in i else 0 for i in params.param])
     current_pos = eval_pos(
         np.random.uniform(size=params.shape[0]),
         params = params,
         obs = obs, 
         shrinkage=shrinkage,
+        shrink_mask = shrink_mask,
         holdout=holdout,
         sample_obs=sample_obs,
     )
@@ -177,6 +180,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
                 params,
                 obs,
                 shrinkage=shrinkage,
+                shrink_mask = shrink_mask,
                 holdout=holdout,
                 sample_obs=sample_obs,
             )
@@ -246,29 +250,29 @@ def do_chains(n_iters, params, obs,
 
 def main():
     # if __name__ == "__main__":
-    #     n_chains = 8
-    #     n_iters = 3000
-    #     penalty = .05
-    #     fit_penalty = False
-    #     sample_obs = False
-    #     as_of_days_ago = 0
-    #     census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
-    #     # impute vent with the proportion of hosp.  this is a crude hack
-    #     census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-    #         census_ts.vent.isna()
-    #     ] * np.mean(census_ts.vent / census_ts.hosp)
-    #     # import parameters
-    #     params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
-    #     flexible_beta = True
-    #     fit_penalty = True
-    #     y_max = None
-    #     figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-    #     outdir = f"/Users/crandrew/projects/chime_sims/output/"
-    #     burn_in = 2000
-    #     prefix = ""
-    #     reopen_day = 100
-    #     reopen_speed = .1
-    #     reopen_cap = .5
+        n_chains = 8
+        n_iters = 3000
+        penalty = .05
+        fit_penalty = False
+        sample_obs = False
+        as_of_days_ago = 0
+        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
+        flexible_beta = True
+        fit_penalty = True
+        y_max = None
+        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        burn_in = 2000
+        prefix = ""
+        reopen_day = 100
+        reopen_speed = .1
+        reopen_cap = .5
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -433,6 +437,7 @@ def main():
                                    description = ['','']))
         
         params = pd.concat([params, beta_splines, nobsd, Xscale])
+    
     
 
     # rolling window variance
