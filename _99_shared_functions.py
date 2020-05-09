@@ -27,14 +27,25 @@ def sir(y, alpha, beta, gamma, nu, N):
     return Sn * scale, En * scale, In * scale, Rn * scale
 
 
-def reopenfn(day, reopen_day=60, reopen_speed=0.1):
+def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
     """Starting on `reopen_day`, reduce contact restrictions
     by `reopen_speed`*100%.
     """
     if day < reopen_day:
         return 1.0
     else:
-        return (1 - reopen_speed) ** (day - reopen_day)
+        val = (1 - reopen_speed) ** (day - reopen_day)
+        return val if val >= reopen_cap else reopen_cap
+
+def reopen_wrapper(dfi, day, speed):
+    p_df = dfi.reset_index()   
+    p_df.columns = ['param', 'val']
+    ro = dict(param = ['reopen_day', 'reopen_speed'],
+              val = [day, speed])
+    p_df = pd.concat([p_df, pd.DataFrame(ro)])
+    p_df
+    SIR_ii = SIR_from_params(p_df)
+    return SIR_ii['arr_stoch'][:,3]
 
 
 def scale(arr, mu, sig):
@@ -69,6 +80,7 @@ def sim_sir(
     logistic_x0,
     reopen_day=1000,
     reopen_speed=0.0,
+    reopen_cap=.5,
 ):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
@@ -79,13 +91,13 @@ def sim_sir(
         # evaluate splines
         if len(beta_spline) > 0:
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            X = scale(X, Xmu, Xsig)
+            # X = scale(X, Xmu, Xsig)
             #scale to prevent overflows and make the penalties comparable across bases
             XB = float(X@beta_spline) # the plus 4 os a temporary hack
             sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
-        sd *= reopenfn(day, reopen_day, reopen_speed)
+        sd *= reopenfn(day, reopen_day, reopen_speed, reopen_cap)
         beta_t = beta * (1 - sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)

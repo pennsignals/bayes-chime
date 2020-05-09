@@ -14,7 +14,9 @@ import numpy as np
 import pandas as pd
 
 
-from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline
+from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
+    reopen_wrapper
+
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
     plt_pairplot_posteriors
 from utils import beta_from_q
@@ -245,32 +247,31 @@ def do_chains(n_iters, params, obs,
 
 
 def main():
-    if __name__ == "__main__":
-        # n_chains = 8
-        # n_iters = 3000
-        # penalty = .05
-        # fit_penalty = False
-        # sample_obs = False
-        # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
-        # # impute vent with the proportion of hosp.  this is a crude hack
-        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        #     census_ts.vent.isna()
-        # ] * np.mean(census_ts.vent / census_ts.hosp)
-        # # import parameters
-        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
-        # flexible_beta = True
-        # fit_penalty = True
-        # y_max = None
-        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-
+    # if __name__ == "__main__":
+    #     n_chains = 8
+    #     n_iters = 3000
+    #     penalty = .05
+    #     fit_penalty = False
+    #     sample_obs = False
+    #     as_of_days_ago = 0
+    #     census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
+    #     # impute vent with the proportion of hosp.  this is a crude hack
+    #     census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+    #         census_ts.vent.isna()
+    #     ] * np.mean(census_ts.vent / census_ts.hosp)
+    #     # import parameters
+    #     params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
+    #     flexible_beta = True
+    #     fit_penalty = True
+    #     y_max = None
+    #     figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    #     outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    #     burn_in = 2000
+    #     prefix = ""
+    #     reopen_day = 100
+    #     reopen_speed = .1
+    #     reopen_cap = .5
     # else:
-    # global PARAMDIR
-    # global CENSUS_TS
-    # global PARAMS
-    # global NOBS
-    # global N_ITERS
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
     p.add("-P", "--prefix", help="prefix for old-style inputs")
@@ -338,7 +339,24 @@ def main():
         action="store_true",
         help="Plot posterior samples in a pair-plot grid",
     )
-
+    p.add(
+        "--reopen_day",
+        type=int,
+        help="day at which to commence evaluating the reopen function",
+        default = 8675309
+    )
+    p.add(
+        "--reopen_speed",
+        type=float,
+        help="how fast to reopen",
+        default = 0.1
+    )
+    p.add(
+        "--reopen_cap",
+        type=float,
+        help="how much reopening to allow",
+        default = 1.0
+    )
 
     options = p.parse_args()
     prefix = options.prefix
@@ -351,7 +369,9 @@ def main():
     flexible_beta = options.flexible_beta
     burn_in = options.burn_in
     y_max = options.y_max
-
+    reopen_day = options.reopen_day
+    reopen_speed = options.reopen_speed
+    reopen_cap = options.reopen_speed
 
     if flexible_beta:
         print("doing flexible beta")
@@ -484,7 +504,7 @@ def main():
     df = do_chains(n_iters = n_iters, 
                    params = params, 
                    obs = census_ts, 
-                   best_penalty = None, 
+                   best_penalty = best_penalty, 
                    sample_obs = sample_obs, 
                    holdout = as_of_days_ago,
                    n_chains = n_chains,
@@ -517,6 +537,36 @@ def main():
             hosp_capacity=None,
             vent_capacity=None,
         )
+
+    # reopening.  
+    reopen_days = np.arange(reopen_day, 199, 25)
+    qmats = []    
+    for day in reopen_days:
+        pool = mp.Pool(mp.cpu_count())
+        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed) for i in range(df.shape[0])])
+        pool.close()
+        reop = np.stack(reop)
+        reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
+        qmats.append(reopq)
+
+    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
+    dates = pd.date_range(f"{first_day}", periods=201, freq="d")
+    fig = plt.figure()
+    for i in range(len(reopen_days)):
+        plt.plot_date(dates, qmats[i][2, :], "-", 
+                      label=f"re-open after {reopen_days[i]} days",
+                      color = colors[i])
+        plt.fill_between(x = dates,
+                         y1 = qmats[i][1,:], y2 = qmats[i][3,:], 
+                         alpha = .2, color = colors[i])
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
+    fig.autofmt_xdate()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
+     
+    
 
     mk_projection_tables(df, first_day, outdir)
 
