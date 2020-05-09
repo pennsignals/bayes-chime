@@ -15,6 +15,8 @@ import pandas as pd
 
 
 from _99_shared_functions import SIR_from_params, qdraw, jumper
+from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
+    plt_pairplot_posteriors
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
@@ -243,22 +245,26 @@ def do_chains(n_iters, params, obs,
 
 
 def main():
-    # if __name__ == "__main__":
-    #     n_chains = 8
-    #     n_iters = 2000
-    #     penalty = .05
-    #     fit_penalty = False
-    #     sample_obs = False
-    #     as_of_days_ago = 0
-    #     census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_ts.csv"))
-    #     # impute vent with the proportion of hosp.  this is a crude hack
-    #     census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-    #         census_ts.vent.isna()
-    #     ] * np.mean(census_ts.vent / census_ts.hosp)
-    #     # import parameters
-    #     params = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"LGH_parameters.csv"))
-    #     flexible_beta = True
-    #     fit_penalty = True
+    if __name__ == "__main__":
+        n_chains = 8
+        n_iters = 3000
+        penalty = .05
+        fit_penalty = False
+        sample_obs = False
+        as_of_days_ago = 0
+        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
+        flexible_beta = True
+        fit_penalty = True
+        y_max = None
+        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        outdir = f"/Users/crandrew/projects/chime_sims/output/"
+
     # else:
     # global PARAMDIR
     # global CENSUS_TS
@@ -311,9 +317,31 @@ def main():
         help="flexible, vs simple, logistic represetation of beta",
     )
     p.add("-v", "--verbose", action="store_true", help="verbose output")
+    p.add(
+        "-B",
+        "--burn_in",
+        type=int,
+        help="how much of the burn-in to discard",
+        default = 2000
+    )
+    p.add(
+        "-d",
+        "--n_days",
+        help="make a census/admits plot out to n_days",
+        type=int,
+        action="append",
+    )
+    p.add("-y", "--y_max", help="max y-scale for the census graph", type=int)
+    p.add(
+        "-pp",
+        "--plot_pairs",
+        action="store_true",
+        help="Plot posterior samples in a pair-plot grid",
+    )
+
 
     options = p.parse_args()
-
+    prefix = options.prefix
     n_chains = options.n_chains
     n_iters = options.n_iters
     penalty = options.penalty
@@ -321,6 +349,8 @@ def main():
     sample_obs = options.sample_obs
     as_of_days_ago = options.as_of
     flexible_beta = options.flexible_beta
+    burn_in = options.burn_in
+    y_max = options.y_max
 
 
     if flexible_beta:
@@ -349,7 +379,7 @@ def main():
     makedirs(paramdir)
 
     write_inputs(options, paramdir, census_ts, params)
-
+## start here when debug
     nobs = census_ts.shape[0] - as_of_days_ago
 
     # expand out the spline terms and append them to params
@@ -403,7 +433,7 @@ def main():
 
     if fit_penalty:
         pen_vec = np.linspace(0.05, 0.95, 10)
-        tuples_for_starmap = [(3000, i, 7, j, params, census_ts) for i in range(n_chains) for j in pen_vec]
+        tuples_for_starmap = [(n_iters, i, 7, j, params, census_ts) for i in range(n_chains) for j in pen_vec]
         pool = mp.Pool(mp.cpu_count())
         shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
         pool.close()
@@ -414,20 +444,20 @@ def main():
                 2000:
             ].tolist()  # get the penalty value
 
-        mean_test_loss = [np.mean(chain_dict[i]) for i in pen_vec]
+        mean_test_loss = [np.log10(np.mean(chain_dict[i])) for i in pen_vec]
 
         fig = plt.figure()
         plt.plot(pen_vec, mean_test_loss)
         plt.fill_between(
             x=pen_vec,
-            y1=[float(np.quantile(chain_dict[i][1000:], [0.025])) for i in pen_vec],
-            y2=[float(np.quantile(chain_dict[i][1000:], [0.975])) for i in pen_vec],
+            y1=[np.log10(float(np.quantile(chain_dict[i][1000:], [0.025]))) for i in pen_vec],
+            y2=[np.log10(float(np.quantile(chain_dict[i][1000:], [0.975]))) for i in pen_vec],
             alpha=0.3,
             lw=2,
             edgecolor="k",
         )
         plt.xlabel("penalty factor")
-        plt.ylabel("test MSE")
+        plt.ylabel("log10(test MSE)")
         fig.savefig(path.join(f"{figdir}", f"shrinkage_grid_GOF.pdf"))
 
         # identify the best penalty
@@ -444,8 +474,98 @@ def main():
                    holdout = as_of_days_ago,
                    n_chains = n_chains,
                    parallel=True)
-
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
+
+    # process the output
+    burn_in_df = df.loc[(df.iter <= burn_in)]
+    df = df.loc[(df.iter > burn_in)]
+    
+    # do the SD plot
+    SD_plot(census_ts, params, df, figdir, prefix if prefix is not None else "")
+
+    # make predictive plot
+    n_days = [30, 90, 180]
+    if options.n_days:
+        n_days = options.n_days
+
+    first_day = census_ts[census_ts.columns[0]].values[0]
+    for howfar in n_days:
+        plt_predictive(
+            df,
+            first_day,
+            census_ts,
+            figdir,
+            as_of_days_ago,
+            howfar=howfar,
+            prefix=prefix if prefix is not None else "",
+            y_max=y_max,
+            hosp_capacity=None,
+            vent_capacity=None,
+        )
+
+    mk_projection_tables(df, first_day, outdir)
+
+    toplot = df[
+        [
+            "beta",
+            "hosp_prop",
+            "ICU_prop",
+            "vent_prop",
+            "hosp_LOS",
+            "ICU_LOS",
+            "vent_LOS",
+            "incubation_days",
+            "recovery_days",
+            "logistic_k",
+            "logistic_x0",
+            "logistic_L",
+            "nu",
+        ]
+    ]
+
+    pspace = np.linspace(0.001, 0.999, 1000)
+
+    fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns))
+    for i in range(len(toplot.columns)):
+        cname = toplot.columns[i]
+        if params.loc[params.param == cname, "distribution"].iloc[0] == "gamma":
+            x = sps.gamma.ppf(
+                pspace,
+                params.loc[params.param == cname, "p1"],
+                0,
+                params.loc[params.param == cname, "p2"],
+            )
+            y = sps.gamma.pdf(
+                x,
+                params.loc[params.param == cname, "p1"],
+                0,
+                params.loc[params.param == cname, "p2"],
+            )
+        elif params.loc[params.param == cname, "distribution"].iloc[0] == "beta":
+            x = sps.beta.ppf(
+                pspace,
+                params.loc[params.param == cname, "p1"],
+                params.loc[params.param == cname, "p2"],
+            )
+            y = sps.beta.pdf(
+                x,
+                params.loc[params.param == cname, "p1"],
+                params.loc[params.param == cname, "p2"],
+            )
+        ax[i].plot(x, y, label="prior")
+        ax[i].hist(toplot[cname], density=True, label="posterior", bins=30)
+        ax[i].set_xlabel(params.loc[params.param == cname, "description"].iloc[0])
+        ax[i].legend()
+    plt.tight_layout()
+    fig.savefig(path.join(f"{figdir}", 
+                          f"{prefix if prefix is not None else ''}marginal_posteriors_v2.pdf"))
+
+    if options.plot_pairs:
+        #  Make a pair plot for diagnosing posterior dependence
+        plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
+
+
+
     if options.verbose:
         print(f"Output directory: {dir}")
     else:

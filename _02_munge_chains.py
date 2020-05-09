@@ -277,7 +277,7 @@ def SD_plot(census_ts, params, df, figdir, prefix = ""):
     qmat = np.vstack(qlist)
     fig = plt.figure()
 
-    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 1])
+    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 2])
     plt.fill_between(
         x=list(range(census_ts.shape[0])),
         y1=1 - qmat[:, 0],
