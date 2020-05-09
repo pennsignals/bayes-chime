@@ -200,7 +200,6 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
-        # print(current_pos['posterior'])
         posterior_history.append(current_pos['posterior'])
         if (ii%100 == 0) and (ii>200):
             # diagnose:
@@ -225,7 +224,6 @@ def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs):
-    print(shrinkage)
     return chain(n_iters = n_iters, seed = seed, params=params, 
                  obs=obs, shrinkage=shrinkage, holdout=holdout)["test_loss"]
 
