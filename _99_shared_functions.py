@@ -37,6 +37,15 @@ def reopenfn(day, reopen_day=60, reopen_speed=0.1):
         return (1 - reopen_speed) ** (day - reopen_day)
 
 
+def scale(arr, mu, sig):
+    if len(arr.shape)==1:
+        arr = np.expand_dims(arr, 0)
+    arr = np.apply_along_axis(lambda x: x-mu, 1, arr)
+    arr = np.apply_along_axis(lambda x: x/sig, 1, arr)
+    return arr
+
+
+
 # Run the SIR model forward in time
 def sim_sir(
     S,
@@ -50,6 +59,8 @@ def sim_sir(
     beta_k,
     beta_spline_power,
     nobs,
+    Xmu,
+    Xsig,
     gamma,
     nu,
     n_days,
@@ -63,19 +74,15 @@ def sim_sir(
     s, e, i, r = [S], [E], [I], [R]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
-        X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
-        Xmu = np.mean(X, axis = 0)
-        Xsig = np.mean(X, axis = 0)
-        X = (X-Xmu)/Xsig
-        XB = X@beta_spline
     for day in range(n_days):
         y = S, E, I, R
         # evaluate splines
         if len(beta_spline) > 0:
-            # X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            # #scale to prevent overflows and make the penalties comparable across bases
-            # XB = X@beta_spline # the plus 4 os a temporary hack
-            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB[day])
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            X = scale(X, Xmu, Xsig)
+            #scale to prevent overflows and make the penalties comparable across bases
+            XB = float(X@beta_spline) # the plus 4 os a temporary hack
+            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         sd *= reopenfn(day, reopen_day, reopen_speed)
@@ -183,6 +190,7 @@ def SIR_from_params(p_df):
     logistic_k = float(p_df.val.loc[p_df.param == "logistic_k"])
     logistic_L = float(p_df.val.loc[p_df.param == "logistic_L"])
     logistic_x0 = float(p_df.val.loc[p_df.param == "logistic_x0"])
+    nu = float(p_df.val.loc[p_df.param == "nu"])
     beta = float(
         p_df.val.loc[p_df.param == "beta"]
     )  # get beta directly rather than via doubling time
@@ -193,14 +201,15 @@ def SIR_from_params(p_df):
         beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
         nobs = float(p_df.val.loc[p_df.param == "nobs"])
         beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
+        Xmu = p_df.loc[p_df.param == "Xmu", 'val'].iloc[0]
+        Xsig = p_df.loc[p_df.param == "Xsig", 'val'].iloc[0]
     else:
         beta_spline_power = None
         beta_k = None
         nobs = None
         b0 = None
+        Xmu, Xsig = None, None
         
-
-    nu = float(p_df.val.loc[p_df.param == "nu"])
 
     reopen_day, reopen_speed = 1000, 0.0
     if "reopen_day" in p_df.param.values:
@@ -238,6 +247,8 @@ def SIR_from_params(p_df):
         beta_spline = beta_spline,
         beta_k = beta_k,
         beta_spline_power = beta_spline_power,
+        Xmu = Xmu,
+        Xsig = Xsig,
         nobs = nobs,
         gamma=gamma,
         nu=nu,

@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 
-from _99_shared_functions import SIR_from_params, qdraw, jumper
+from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
     plt_pairplot_posteriors
 from utils import beta_from_q
@@ -246,24 +246,24 @@ def do_chains(n_iters, params, obs,
 
 def main():
     if __name__ == "__main__":
-        n_chains = 8
-        n_iters = 3000
-        penalty = .05
-        fit_penalty = False
-        sample_obs = False
-        as_of_days_ago = 0
-        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
-        # impute vent with the proportion of hosp.  this is a crude hack
-        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-            census_ts.vent.isna()
-        ] * np.mean(census_ts.vent / census_ts.hosp)
-        # import parameters
-        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
-        flexible_beta = True
-        fit_penalty = True
-        y_max = None
-        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        # n_chains = 8
+        # n_iters = 3000
+        # penalty = .05
+        # fit_penalty = False
+        # sample_obs = False
+        # as_of_days_ago = 0
+        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
+        # # impute vent with the proportion of hosp.  this is a crude hack
+        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        #     census_ts.vent.isna()
+        # ] * np.mean(census_ts.vent / census_ts.hosp)
+        # # import parameters
+        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
+        # flexible_beta = True
+        # fit_penalty = True
+        # y_max = None
+        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
 
     # else:
     # global PARAMDIR
@@ -384,6 +384,7 @@ def main():
 
     # expand out the spline terms and append them to params
     # also add the number of observations, as i'll need this for evaluating the knots
+    # finally, estimate the scaling factors for the design matrix
     if flexible_beta == True:
         beta_splines = pd.DataFrame([{
             "param": f"beta_spline_coef_{i}",
@@ -398,7 +399,22 @@ def main():
                                   p2 = np.nan, 
                                   description = 'number of observations(days)'), 
                              index = [0])
-        params = pd.concat([params, beta_splines, nobsd])
+        # create the design matrix in order to compute the scaling factors
+        # this is critical to make the prior on design matrix flexibility invariant to the scaling of the features
+        beta_k = int(params.loc[params.param == "beta_spline_dimension", 'base'])
+        beta_spline_power = int(params.loc[params.param == "beta_spline_power", 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
+        X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(nobs)])
+        Xmu = np.mean(X, axis = 0)
+        Xsig = np.std(X, axis = 0)
+        Xscale = pd.DataFrame(dict(param = ['Xmu', 'Xsig'], 
+                                   base = [Xmu, Xsig], 
+                                   distribution = "constant", 
+                                   p1 = [np.nan, np.nan], 
+                                   p2 = [np.nan, np.nan], 
+                                   description = ['','']))
+        
+        params = pd.concat([params, beta_splines, nobsd, Xscale])
     
 
     # rolling window variance
@@ -464,7 +480,6 @@ def main():
         best_penalty = pen_vec[np.argmin(mean_test_loss)]
     elif penalty < 1:
         best_penalty = penalty
-
     # fit the actual chains
     df = do_chains(n_iters = n_iters, 
                    params = params, 
