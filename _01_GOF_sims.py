@@ -159,7 +159,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
         sq1 = shrinkage / 2
         sq2 = 1 - shrinkage / 2
         shrinkage = beta_from_q(sq1, sq2)
-        shrink_mask= np.array([1 if "beta_spline_coef" in i else 0 for i in params.param])
+        shrink_mask= np.array([1 if "" in i else 0 for i in params.param])
     current_pos = eval_pos(
         np.random.uniform(size=params.shape[0]),
         params = params,
