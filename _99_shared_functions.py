@@ -63,13 +63,19 @@ def sim_sir(
     s, e, i, r = [S], [E], [I], [R]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
+        X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
+        Xmu = np.mean(X, axis = 0)
+        Xsig = np.mean(X, axis = 0)
+        X = (X-Xmu)/Xsig
+        XB = X@beta_spline
     for day in range(n_days):
         y = S, E, I, R
         # evaluate splines
         if len(beta_spline) > 0:
-            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            XB = X@beta_spline # the plus 4 os a temporary hack
-            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
+            # X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            # #scale to prevent overflows and make the penalties comparable across bases
+            # XB = X@beta_spline # the plus 4 os a temporary hack
+            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB[day])
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         sd *= reopenfn(day, reopen_day, reopen_speed)
@@ -81,6 +87,16 @@ def sim_sir(
         r.append(R)
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
     return s, e, i, r
+
+
+# # compute X scale factor.  first need to compute who X matrix across all days
+# nobs = 100
+# n_days = 100
+# beta_spline_power = 2
+# beta_spline = np.random.uniform(size = len(knots))
+# X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
+# # need to be careful with this:  apply the scaling to the new X's when predicting
+
 
 
 def power_spline(x, knots, n, xtrim):
