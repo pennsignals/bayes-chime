@@ -219,14 +219,6 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
     return pd.DataFrame(outdicts)
 
 
-def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0.8, 10)):
-    test_loss = []
-    for shr in shrvec:
-        chain_out = chain(seed, params, obs, shr, holdout)
-        test_loss.append(chain_out["test_loss"])
-    return test_loss
-
-
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs):
     return chain(n_iters = n_iters, seed = seed, params=params, 
                  obs=obs, shrinkage=shrinkage, holdout=holdout)["test_loss"]
@@ -476,7 +468,7 @@ def main():
 
 
     if fit_penalty:
-        pen_vec = np.linspace(0.05, 0.95, 10)
+        pen_vec = np.linspace(0.05, 0.8, 10)
         tuples_for_starmap = [(n_iters, i, 7, j, params, census_ts) for i in range(n_chains) for j in pen_vec]
         pool = mp.Pool(mp.cpu_count())
         shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
