@@ -267,6 +267,7 @@ def main():
         # reopen_cap = .5
     # else:
     p = ArgParser()
+    p.add("--AAA", type = float)
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
     p.add("-P", "--prefix", help="prefix for old-style inputs")
     p.add("-p", "--parameters", help="the path to the parameters csv")
@@ -353,6 +354,10 @@ def main():
     )
 
     options = p.parse_args()
+    
+    print(options.AAA)
+    breakpoint()
+    
     prefix = options.prefix
     n_chains = options.n_chains
     n_iters = options.n_iters
