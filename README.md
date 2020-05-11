@@ -10,7 +10,9 @@ We recommend using the [anaconda](https://www.anaconda.com/distribution/) python
 pip install -r requirements.txt
 ```
 
-# The best way to run sims is via a bash script.  This allows for easy configurability of arguments.  Here is an example script:
+# Usage
+
+The best way to run sims is via a bash script.  This allows for easy configurability of arguments.  Here is an example script:
 
 ```bash
 
