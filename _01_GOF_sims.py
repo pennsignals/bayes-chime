@@ -480,10 +480,10 @@ def main():
         chain_dict = {i: [] for i in pen_vec}
         for i in range(len(tuples_for_starmap)):
             chain_dict[tuples_for_starmap[i][3]] += shrinkage_chains[i][
-                2000:
+                burn_in:
             ].tolist()  # get the penalty value
 
-        mean_test_loss = [np.log10(np.mean(chain_dict[i])) for i in pen_vec]
+        mean_test_loss = [np.mean(np.array(chain_dict[i])**.5) for i in pen_vec]
 
         fig = plt.figure()
         plt.plot(pen_vec, mean_test_loss)
