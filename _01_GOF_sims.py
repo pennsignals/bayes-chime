@@ -219,7 +219,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
     return pd.DataFrame(outdicts)
 
 
-def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0.95, 10)):
+def loop_over_shrinkage(seed, params, obs, holdout=7, shrvec=np.linspace(0.05, 0.8, 10)):
     test_loss = []
     for shr in shrvec:
         chain_out = chain(seed, params, obs, shr, holdout)
@@ -435,9 +435,14 @@ def main():
                                    p1 = [np.nan, np.nan], 
                                    p2 = [np.nan, np.nan], 
                                    description = ['','']))
-        
         params = pd.concat([params, beta_splines, nobsd, Xscale])
-    
+        # set the ununsed ones to constant
+        params.loc[params.param.isin(['logistic_k', 
+                                      'logistic_L', 
+                                      'logistic_x0',
+                                      'beta_spline_power',
+                                      'beta_spline_prior',
+                                      'beta_spline_dimension']), 'distribution'] = "constant"
     
 
     # rolling window variance
