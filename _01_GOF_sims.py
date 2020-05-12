@@ -144,15 +144,16 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
         hosp_next_week = draw['arr'][n_obs+7,3]
         hosp_now = train.hosp.values[-1]
         hosp_pct_diff = (hosp_next_week/hosp_now-1) * 100
-        hosp_forecast_prob = np.log(sps.norm.pdf(hosp_pct_diff, forecast_priors['mu'], forecast_priors['sig']))
+        hosp_forecast_prob = sps.norm.pdf(hosp_pct_diff, forecast_priors['mu'], forecast_priors['sig'])
         
         vent_next_week = draw['arr'][n_obs+7,5]
         vent_now = train.vent.values[-1]
-        vent_pct_diff = (vent_next_week/hosp_now-1) * 100
-        vent_forecast_prob = np.log(sps.norm.pdf(vent_pct_diff, forecast_priors['mu'], forecast_priors['sig']))        
-        forecast_prior_contrib = (hosp_forecast_prob + vent_forecast_prob)
-        print(forecast_prior_contrib)
-        posterior += forecast_prior_contrib        
+        vent_pct_diff = (vent_next_week/vent_now-1) * 100
+        vent_forecast_prob = sps.norm.pdf(vent_pct_diff, forecast_priors['mu'], forecast_priors['sig'])      
+
+        forecast_prior_contrib = (hosp_forecast_prob * vent_forecast_prob)
+        forecast_prior_contrib = np.log(forecast_prior_contrib) if forecast_prior_contrib >0 else -np.inf
+        posterior += forecast_prior_contrib
 
     out = dict(
         pos=pos,
@@ -170,8 +171,8 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
 
 
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
-          sample_obs,
-          forecast_priors):
+          forecast_priors,
+          sample_obs):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -269,6 +270,7 @@ def do_chains(n_iters,
         chains = map(lambda x: chain(*x), tuples_for_starmap)
     df = pd.concat(chains, ignore_index=True)
     return df
+
 
 
 def main():
