@@ -91,7 +91,8 @@ def do_shrinkage(pos, shrinkage, shrink_mask):
     return regularization_penalty
 
 
-def eval_pos(pos, params, obs, shrinkage=None, shrink_mask = None, holdout=0, sample_obs=True):
+def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout, 
+             sample_obs, forecast_priors):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
     n_obs = obs.shape[0]
     nobs = n_obs-holdout
@@ -136,6 +137,23 @@ def eval_pos(pos, params, obs, shrinkage=None, shrink_mask = None, holdout=0, sa
     if shrinkage is not None:
         assert (str(type(shrinkage).__name__) == "ndarray") & (len(shrinkage) == 2)
         posterior -= do_shrinkage(pos, shrinkage, shrink_mask)
+    # forecast prior: compute the probability of the current forecast undet the specified prior
+    # first compute the percent change in the forecast, one week out
+    # then compute the probability of the change under the prior
+    if forecast_priors['sig']>0:
+        hosp_next_week = draw['arr'][n_obs+7,3]
+        hosp_now = train.hosp.values[-1]
+        hosp_pct_diff = (hosp_next_week/hosp_now-1) * 100
+        hosp_forecast_prob = sps.norm.pdf(hosp_pct_diff, forecast_priors['mu'], forecast_priors['sig'])
+        
+        vent_next_week = draw['arr'][n_obs+7,5]
+        vent_now = train.vent.values[-1]
+        vent_pct_diff = (vent_next_week/vent_now-1) * 100
+        vent_forecast_prob = sps.norm.pdf(vent_pct_diff, forecast_priors['mu'], forecast_priors['sig'])      
+
+        forecast_prior_contrib = (hosp_forecast_prob * vent_forecast_prob)
+        forecast_prior_contrib = np.log(forecast_prior_contrib) if forecast_prior_contrib >0 else -np.inf
+        posterior += forecast_prior_contrib
 
     out = dict(
         pos=pos,
@@ -152,7 +170,9 @@ def eval_pos(pos, params, obs, shrinkage=None, shrink_mask = None, holdout=0, sa
     return out
 
 
-def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=False):
+def chain(seed, params, obs, n_iters, shrinkage, holdout, 
+          forecast_priors,
+          sample_obs):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -168,6 +188,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
         shrink_mask = shrink_mask,
         holdout=holdout,
         sample_obs=sample_obs,
+        forecast_priors = forecast_priors
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
@@ -183,6 +204,7 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
                 shrink_mask = shrink_mask,
                 holdout=holdout,
                 sample_obs=sample_obs,
+                forecast_priors = forecast_priors
             )
             p_accept = np.exp(proposed_pos["posterior"] - current_pos["posterior"])
             if U[ii] < p_accept:
@@ -214,20 +236,31 @@ def chain(seed, params, obs, n_iters, shrinkage=None, holdout=0, sample_obs=Fals
                 flat = False
             if always_rejecting or flat:
                 jump_sd *= .9
-
         # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
     return pd.DataFrame(outdicts)
 
 
-def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs):
+
+
+def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
+                  forecast_priors):
     return chain(n_iters = n_iters, seed = seed, params=params, 
-                 obs=obs, shrinkage=shrinkage, holdout=holdout)["test_loss"]
+                 obs=obs, shrinkage=shrinkage, holdout=holdout,
+                 forecast_priors = forecast_priors)["test_loss"]
 
 
-def do_chains(n_iters, params, obs, 
-              best_penalty = None, sample_obs = False, holdout = 0, 
-              n_chains = 8, parallel = True):
-    tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, sample_obs) for i in range(n_chains)]
+def do_chains(n_iters, 
+              params, 
+              obs, 
+              best_penalty, 
+              sample_obs, 
+              holdout, 
+              n_chains, 
+              forecast_priors, 
+              parallel):
+    tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, \
+                           forecast_priors, sample_obs) \
+                          for i in range(n_chains)]
     # get the final answer based on the best penalty
     if parallel:
         pool = mp.Pool(mp.cpu_count())
@@ -265,6 +298,12 @@ def main():
         # reopen_day = 100
         # reopen_speed = .1
         # reopen_cap = .5
+        
+        # forecast_change_prior_mean = 0
+        # forecast_change_prior_sd = 20
+        # forecast_priors = dict(mu = forecast_change_prior_mean,
+        #                        sig = forecast_change_prior_sd)
+        
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -351,6 +390,18 @@ def main():
         help="how much reopening to allow",
         default = 1.0
     )
+    p.add(
+        "--forecast_change_prior_mean",
+        type=float,
+        help="prior on how much the census will change over the next week, in percent",
+        default = 0
+    )
+    p.add(
+        "--forecast_change_prior_sd",
+        type=float,
+        help="strength of prior on how much the census will change over the next week, in percent",
+        default = -9999.9
+    )
 
     options = p.parse_args()
         
@@ -367,6 +418,8 @@ def main():
     reopen_day = options.reopen_day
     reopen_speed = options.reopen_speed
     reopen_cap = options.reopen_speed
+    forecast_priors = dict(mu = options.forecast_change_prior_mean,
+                           sig = options.forecast_change_prior_sd)
 
     if flexible_beta:
         print("doing flexible beta")
@@ -467,10 +520,10 @@ def main():
         plt.title("week-long rolling variance")
         fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
 
-
     if fit_penalty:
-        pen_vec = np.linspace(0.05, 0.8, 10)
-        tuples_for_starmap = [(n_iters, i, 7, j, params, census_ts) for i in range(n_chains) for j in pen_vec]
+        pen_vec = np.linspace(0.05, 0.5, 10)
+        tuples_for_starmap = [(n_iters, i, 7, j, params, census_ts, forecast_priors) \
+                              for i in range(n_chains) for j in pen_vec]
         pool = mp.Pool(mp.cpu_count())
         shrinkage_chains = pool.starmap(get_test_loss, tuples_for_starmap)
         pool.close()
@@ -481,14 +534,14 @@ def main():
                 burn_in:
             ].tolist()  # get the penalty value
 
-        mean_test_loss = [np.mean(np.array(chain_dict[i])**.5) for i in pen_vec]
+        mean_test_loss = [np.mean(np.array(chain_dict[i])) for i in pen_vec]
 
         fig = plt.figure()
         plt.plot(pen_vec, mean_test_loss)
         plt.fill_between(
             x=pen_vec,
-            y1=[np.log10(float(np.quantile(chain_dict[i][1000:], [0.025]))) for i in pen_vec],
-            y2=[np.log10(float(np.quantile(chain_dict[i][1000:], [0.975]))) for i in pen_vec],
+            y1=[float(np.quantile(chain_dict[i][1000:], [0.025])) for i in pen_vec],
+            y2=[float(np.quantile(chain_dict[i][1000:], [0.975])) for i in pen_vec],
             alpha=0.3,
             lw=2,
             edgecolor="k",
@@ -496,7 +549,6 @@ def main():
         plt.xlabel("penalty factor")
         plt.ylabel("log10(test MSE)")
         fig.savefig(path.join(f"{figdir}", f"shrinkage_grid_GOF.pdf"))
-
         # identify the best penalty
         best_penalty = pen_vec[np.argmin(mean_test_loss)]
     elif penalty < 1:
@@ -509,6 +561,7 @@ def main():
                    sample_obs = sample_obs, 
                    holdout = as_of_days_ago,
                    n_chains = n_chains,
+                   forecast_priors = forecast_priors,
                    parallel=True)
     df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
