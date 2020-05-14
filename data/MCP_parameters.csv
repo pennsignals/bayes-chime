@@ -6,7 +6,7 @@ vent_prop,0.66,beta,5.224029085,3.078885266,Proportion of ICU patients requiring
 hosp_LOS,12,gamma,294.8843766,0.031286019,Hospital Length of Stay
 ICU_LOS,9,gamma,99.33611205,0.124614466,ICU Length of Stay
 vent_LOS,1.111111111,gamma,98.93174118,0.114783054,time on vent
-mkt_share,0.37,constant,,,Hospital Market Share (%)
+mkt_share,0.37,beta,12.6,24.3,Hospital Market Share (%)
 region_pop,368872,constant,,,Regional Population
 incubation_days,5,gamma,18.7,0.1777,Days from exposure to infectiousness
 recovery_days,14,gamma,9.833457434,1.642265575,Days from infection to recovery
