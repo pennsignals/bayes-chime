@@ -404,6 +404,11 @@ def main():
         help="strength of prior on how much the census will change over the next week, in percent",
         default = -9999.9
     )
+    p.add(
+        "--save_chains",
+        action="store_true",
+        help="store the chains?  It'll make it take longer, as there is a lot of info in them.",
+    )
 
     options = p.parse_args()
         
@@ -422,6 +427,7 @@ def main():
     reopen_cap = options.reopen_speed
     forecast_priors = dict(mu = options.forecast_change_prior_mean,
                            sig = options.forecast_change_prior_sd)
+    save_chains = options_save_chains
 
     if flexible_beta:
         print("doing flexible beta")
@@ -565,7 +571,8 @@ def main():
                    n_chains = n_chains,
                    forecast_priors = forecast_priors,
                    parallel=True)
-    df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
+    if save_chains:
+        df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
     # process the output
     burn_in_df = df.loc[(df.iter <= burn_in)]
