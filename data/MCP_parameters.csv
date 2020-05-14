@@ -1,6 +1,6 @@
 param,base,distribution,p1,p2,description
 n_hosp,1,constant,,,Number of hospitalized COVID-19 patients on day 1
-hosp_prop,0.025,gamma,1.47,0.001,Proportion of infections requiring hospitalization
+hosp_prop,0.025,gamma,6.326832789,0.004168888,Proportion of infections requiring hospitalization
 ICU_prop,0.45,beta,52.05931116,96.8674197,Proportion of hospitalizations admitted to ICU
 vent_prop,0.66,beta,5.224029085,3.078885266,Proportion of ICU patients requiring ventilation
 hosp_LOS,12,gamma,294.8843766,0.031286019,Hospital Length of Stay
