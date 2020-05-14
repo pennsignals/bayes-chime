@@ -294,7 +294,7 @@ def SD_plot(census_ts, params, df, figdir, prefix = ""):
         lw=2,
         edgecolor="k",
     )
-    plt.ylabel(f"Relative (effective) social contact")
+    plt.ylabel(f"Relative time-varying component of transmissivity (beta)")
     plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
     plt.ylim(0, 1)
     fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
