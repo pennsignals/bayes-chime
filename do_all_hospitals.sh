@@ -23,7 +23,7 @@ do
 	--reopen_day $reopen_day \
 	--reopen_speed $reopen_speed \
 	--reopen_cap $reopen_cap \
-	--prefix $loc\
+	--prefix $loc \
 	-o "${loc}_flexB"
 done
 
@@ -40,7 +40,7 @@ do
 	--reopen_day $reopen_day \
 	--reopen_speed $reopen_speed \
 	--reopen_cap $reopen_cap \
-	--prefix $loc\
+	--prefix $loc \
 	-o "${loc}_logistic"
 done
 
@@ -60,7 +60,7 @@ do
 	--reopen_day $reopen_day \
 	--reopen_speed $reopen_speed \
 	--reopen_cap $reopen_cap \
-	--prefix $loc\
+	--prefix $loc \
 	-o "${loc}_downward_prior" \
 	--forecast_change_prior_mean " -10" \
 	--forecast_change_prior_sd " 5" \
