@@ -31,18 +31,3 @@ do
 	-o "yprior$fcp"
 done
 
-# # --prefix Downtown \
-# python _01_GOF_sims.py \
-# -p data/Downtown_parameters.csv \
-# -t data/Downtown_ts.csv \
-# -C $chains \
-# -b \
-# --penalty .3 \
-# -i $n_iters \
-# -B $burn_in \
-# -pp \
-# --reopen_day $reopen_day \
-# --reopen_speed $reopen_speed \
-# --reopen_cap $reopen_cap \
-# --forecast_change_prior_mean " -20". \
-# --forecast_change_prior_sd 20.0

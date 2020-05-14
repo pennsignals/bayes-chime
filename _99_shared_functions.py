@@ -93,7 +93,7 @@ def sim_sir(
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
             # X = scale(X, Xmu, Xsig)
             #scale to prevent overflows and make the penalties comparable across bases
-            XB = float(X@beta_spline) # the plus 4 os a temporary hack
+            XB = float(X@beta_spline)
             sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
@@ -123,8 +123,6 @@ def power_spline(x, knots, n, xtrim):
         x = xtrim + 1
     spl = x - np.array(knots)
     spl[spl<0] = 0
-    # # to flatten trends past the last day, set trends equal to max of knots, plus one
-    # spl[spl>(max(knots)+1)] = max(knots)+1
     return spl**n
 
 '''
