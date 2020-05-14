@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from _99_shared_functions import power_spline
 from utils import DirectoryType
-
+import warnings
 # plot of logistic curves
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
@@ -249,6 +250,138 @@ def read_inputs(paramdir):
     return census_ts, params, args
 
 
+def SD_plot(census_ts, params, df, figdir, prefix = ""):
+    qlist = []
+    if 'beta_spline_coef_0' in df.columns:
+        nobs = census_ts.shape[0]
+        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+        b0 = np.array(df.b0)
+
+        for day in range(nobs):
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline_coefs.T
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
+            qlist.append(np.quantile(sd, [0.05,.25, 0.5, .75, 0.95]))
+            # plt.hist(sd)
+    else:
+        for day in range(census_ts.shape[0]):
+            ldist = logistic(
+                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+            )
+            qlist.append(np.quantile(ldist, [0.05,.25, 0.5, .75, 0.95]))
+            
+    # logistic SD plot
+    qmat = np.vstack(qlist)
+    fig = plt.figure()
+
+    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 2])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=1 - qmat[:, 0],
+        y2=1 - qmat[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=1 - qmat[:, 1],
+        y2=1 - qmat[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Effect of NPI on transmission")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
+    plt.ylim(0, 1)
+    fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
+
+
+def SEIR_plot(df, first_day, howfar, figdir, prefix, census_ts, as_of_days_ago):
+    dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
+    fig = plt.figure()
+    for letter in ['s', 'e', 'i', 'r']   : 
+        list_of_letter_values = [df[letter].iloc[j][df.offset.iloc[j]:] for j in range(len(df[letter]))]
+        L = np.stack(list_of_letter_values)
+        Lqs = np.quantile(L[:,:howfar], [.025, .05, .25, .5, .75, .95, .975], axis = 0)    /1000 
+        plt.plot_date(dates, Lqs[3, :], "-", label = letter)
+        plt.fill_between(x = dates,
+                         y1 = Lqs[1, :],
+                         y2 = Lqs[5, :],
+                         alpha = .3)
+    plt.axvline(dates.values[census_ts.hosp.shape[0]-as_of_days_ago],         
+        color="grey",
+        ls="--",
+        label="Last Datapoint Used")
+    plt.legend()
+    plt.grid(True)
+    plt.ylabel('Individuals (thousands)')
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_SEIR_{howfar}_day.pdf"))
+
+    
+
+def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
+    dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
+    fig = plt.figure()
+    qlist = []
+    if 'beta_spline_coef_0' in df.columns:
+        nobs = census_ts.shape[0]
+        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+        b0 = np.array(df.b0)
+
+        for day in range(nobs):
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline_coefs.T
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
+            S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+            beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+            qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))
+            # plt.hist(sd)
+    else:
+        
+        for day in range(census_ts.shape[0]):
+            sd = logistic(
+                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+            )
+            S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+            beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+            qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))            
+    qmat = np.vstack(qlist)
+    fig = plt.figure()
+    plt.plot(list(range(census_ts.shape[0])), qmat[:, 2])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat[:, 0],
+        y2=qmat[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat[:, 1],
+        y2=qmat[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Reproduction number (R) over time, including NPI")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
+    plt.axhline(y=1,      
+        color="grey",
+        ls="--")
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt.pdf"))
+
+
+
 def main():
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -287,9 +420,16 @@ def main():
         action="store_true",
         help="plot capacity as a horizontal line",
     )
+    p.add(
+        "-b",
+        "--burn_in",
+        type=int,
+        help="how much of the burn-in to discard",
+        default = 2000
+    )
 
     options = p.parse_args()
-
+    burn_in = options.burn_in
     prefix = ""
     if options.prefix is not None:
         prefix = f"{options.prefix}_"
@@ -305,7 +445,7 @@ def main():
     figdir = path.join(dir, "figures")
 
     census_ts, params, args = read_inputs(paramdir)
-    first_day = census_ts["date"].values[0]
+    first_day = census_ts[census_ts.columns[0]].values[0] #weird chack for non-ascii characters in the input file
 
     # TODO: This needs to be configurable based on the time period specificed
     as_of_days_ago = args["as_of"]
@@ -317,40 +457,27 @@ def main():
         vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
         hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
+# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/output/chains.json.bz2", lines = True)
+# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/census_ts.csv')
+# params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/params.csv')
+
     # Chains
     df = pd.read_json(
         path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True
     )
     print(f"READ chains file: {df.shape[0]} total iterations")
     # remove burn-in
-    # TODO: Make 1000 configurable
-    df = df.loc[(df.iter > 1000)]
+    
+    iters_remaining = df.iter.max()-burn_in
+    assert iters_remaining>100, f"Breaking here: you are casting aside {burn_in} iterations as burn-in, but there are only {df.iter.max()} iteratons per chain"
+    if iters_remaining < 1000:
+        warnings.warn(f"You're only using {iters_remaining} iterations per chain.  This may not be fully cromulent.")
+    df = df.loc[(df.iter > burn_in)]
 
-    qlist = []
-    for day in range(census_ts.shape[0]):
-        ldist = logistic(
-            df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
-        )
-        qlist.append(np.quantile(ldist, [0.05, 0.5, 0.95]))
-
-    # logistic SD plot
-    qmat = np.vstack(qlist)
-    fig = plt.figure()
-
-    plt.plot(list(range(census_ts.shape[0])), 1 - qmat[:, 1])
-    plt.fill_between(
-        x=list(range(census_ts.shape[0])),
-        y1=1 - qmat[:, 0],
-        y2=1 - qmat[:, 2],
-        alpha=0.3,
-        lw=2,
-        edgecolor="k",
-    )
-    plt.ylabel(f"Relative (effective) social contact")
-    plt.xlabel(f"Days since {first_day}")
-    plt.ylim(0, 1)
-    fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
-
+    # make the social distancing plot
+    SD_plot(census_ts, params, df, figdir, prefix)
+    
+    ##
     for howfar in n_days:
         plt_predictive(
             df,
