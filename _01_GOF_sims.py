@@ -18,7 +18,7 @@ from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
     reopen_wrapper
 
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
-    plt_pairplot_posteriors
+    plt_pairplot_posteriors, SEIR_plot, Rt_plot
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
@@ -223,6 +223,10 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         out.update({"chain": seed})
         out.update({"posterior": proposed_pos["posterior"]})
         out.update({"offset": current_pos["draw"]["offset"]})
+        out.update({"s": current_pos['draw']['s']})
+        out.update({"e": current_pos['draw']['e']})
+        out.update({"i": current_pos['draw']['i']})
+        out.update({"r": current_pos['draw']['r']})
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
@@ -238,8 +242,6 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
                 jump_sd *= .9
         # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
     return pd.DataFrame(outdicts)
-
-
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
@@ -300,9 +302,9 @@ def main():
         # reopen_cap = .5
         
         # forecast_change_prior_mean = 0
-        # forecast_change_prior_sd = 20
+        # forecast_change_prior_sd = -99920
         # forecast_priors = dict(mu = forecast_change_prior_mean,
-        #                        sig = forecast_change_prior_sd)
+        #                         sig = forecast_change_prior_sd)
         
     # else:
     p = ArgParser()
@@ -571,6 +573,26 @@ def main():
     
     # do the SD plot
     SD_plot(census_ts, params, df, figdir, prefix if prefix is not None else "")
+    
+    ## SEIR plot
+    SEIR_plot(df=df, 
+              first_day = census_ts[census_ts.columns[0]].values[0], 
+              howfar = 200, 
+              figdir = figdir, 
+              prefix = prefix if prefix is not None else "",
+              as_of_days_ago = as_of_days_ago,
+              census_ts = census_ts)
+
+    
+    
+    ## Rt plot
+    Rt_plot(df=df, 
+              first_day = census_ts[census_ts.columns[0]].values[0], 
+              howfar = 200, 
+              figdir = figdir, 
+              prefix = prefix if prefix is not None else "",
+              params = params,
+              census_ts = census_ts)
 
     # make predictive plot
     n_days = [30, 90, 180]

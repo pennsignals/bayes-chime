@@ -294,10 +294,92 @@ def SD_plot(census_ts, params, df, figdir, prefix = ""):
         lw=2,
         edgecolor="k",
     )
-    plt.ylabel(f"Relative time-varying component of transmissivity (beta)")
+    plt.ylabel(f"Effect of NPI on transmission")
     plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
     plt.ylim(0, 1)
     fig.savefig(path.join(f"{figdir}", f"{prefix}effective_soc_dist.pdf"))
+
+
+def SEIR_plot(df, first_day, howfar, figdir, prefix, census_ts, as_of_days_ago):
+    dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
+    fig = plt.figure()
+    for letter in ['s', 'e', 'i', 'r']   : 
+        list_of_letter_values = [df[letter].iloc[j][df.offset.iloc[j]:] for j in range(len(df[letter]))]
+        L = np.stack(list_of_letter_values)
+        Lqs = np.quantile(L[:,:howfar], [.025, .05, .25, .5, .75, .95, .975], axis = 0)    /1000 
+        plt.plot_date(dates, Lqs[3, :], "-", label = letter)
+        plt.fill_between(x = dates,
+                         y1 = Lqs[1, :],
+                         y2 = Lqs[5, :],
+                         alpha = .3)
+    plt.axvline(dates.values[census_ts.hosp.shape[0]-as_of_days_ago],         
+        color="grey",
+        ls="--",
+        label="Last Datapoint Used")
+    plt.legend()
+    plt.grid(True)
+    plt.ylabel('Individuals (thousands)')
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_SEIR_{howfar}_day.pdf"))
+
+    
+
+def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
+    dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
+    fig = plt.figure()
+    qlist = []
+    if 'beta_spline_coef_0' in df.columns:
+        nobs = census_ts.shape[0]
+        beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+        beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+        beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+        b0 = np.array(df.b0)
+
+        for day in range(nobs):
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            XB = X@beta_spline_coefs.T
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
+            S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+            beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+            qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))
+            # plt.hist(sd)
+    else:
+        
+        for day in range(census_ts.shape[0]):
+            sd = logistic(
+                df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+            )
+            S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+            beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+            qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))            
+    qmat = np.vstack(qlist)
+    fig = plt.figure()
+    plt.plot(list(range(census_ts.shape[0])), qmat[:, 2])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat[:, 0],
+        y2=qmat[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat[:, 1],
+        y2=qmat[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Reproduction number (R) over time, including NPI")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
+    plt.axhline(y=1,      
+        color="grey",
+        ls="--")
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt.pdf"))
+
 
 
 def main():
