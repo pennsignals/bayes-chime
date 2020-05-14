@@ -181,7 +181,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         shrinkage = beta_from_q(sq1, sq2)
         shrink_mask= np.array([1 if "" in i else 0 for i in params.param])
     current_pos = eval_pos(
-        np.random.uniform(size=params.shape[0]),
+        pos = np.random.uniform(size=params.shape[0]),
         params = params,
         obs = obs, 
         shrinkage=shrinkage,
@@ -279,17 +279,17 @@ def main():
     # if __name__ == "__main__":
         # n_chains = 8
         # n_iters = 3000
-        # penalty = .05
+        # penalty = .25
         # fit_penalty = False
         # sample_obs = False
         # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"HUP_ts.csv"), encoding = "latin")
+        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
         # # impute vent with the proportion of hosp.  this is a crude hack
         # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
         #     census_ts.vent.isna()
         # ] * np.mean(census_ts.vent / census_ts.hosp)
         # # import parameters
-        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"HUP_parameters.csv"), encoding = "latin")
+        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
         # flexible_beta = True
         # fit_penalty = True
         # y_max = None
