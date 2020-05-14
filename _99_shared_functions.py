@@ -142,7 +142,6 @@ def qdraw(qvec, p_df):
     """
     assert len(qvec) == p_df.shape[0]
     outdicts = []
-    breakpoint()
     for i in range(len(qvec)):
         if p_df.distribution.iloc[i] == "constant":
             out = dict(param=p_df.param.iloc[i], val=p_df.base.iloc[i], prob=1)
