@@ -427,7 +427,7 @@ def main():
     reopen_cap = options.reopen_speed
     forecast_priors = dict(mu = options.forecast_change_prior_mean,
                            sig = options.forecast_change_prior_sd)
-    save_chains = options_save_chains
+    save_chains = options.save_chains
 
     if flexible_beta:
         print("doing flexible beta")
