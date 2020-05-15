@@ -74,3 +74,6 @@ class DirectoryType:
 # ax.plot(x, gamma.pdf(x, params[0], scale=params[1]))
 # ax.axvline(2.5, ls='--')
 # ax.axvline(6, ls='--')
+
+
+

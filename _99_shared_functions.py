@@ -27,14 +27,34 @@ def sir(y, alpha, beta, gamma, nu, N):
     return Sn * scale, En * scale, In * scale, Rn * scale
 
 
-def reopenfn(day, reopen_day=60, reopen_speed=0.1):
+def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
     """Starting on `reopen_day`, reduce contact restrictions
     by `reopen_speed`*100%.
     """
     if day < reopen_day:
         return 1.0
     else:
-        return (1 - reopen_speed) ** (day - reopen_day)
+        val = (1 - reopen_speed) ** (day - reopen_day)
+        return val if val >= reopen_cap else reopen_cap
+
+def reopen_wrapper(dfi, day, speed):
+    p_df = dfi.reset_index()   
+    p_df.columns = ['param', 'val']
+    ro = dict(param = ['reopen_day', 'reopen_speed'],
+              val = [day, speed])
+    p_df = pd.concat([p_df, pd.DataFrame(ro)])
+    p_df
+    SIR_ii = SIR_from_params(p_df)
+    return SIR_ii['arr_stoch'][:,3]
+
+
+def scale(arr, mu, sig):
+    if len(arr.shape)==1:
+        arr = np.expand_dims(arr, 0)
+    arr = np.apply_along_axis(lambda x: x-mu, 1, arr)
+    arr = np.apply_along_axis(lambda x: x/sig, 1, arr)
+    return arr
+
 
 
 # Run the SIR model forward in time
@@ -45,6 +65,13 @@ def sim_sir(
     R,
     alpha,
     beta,
+    b0,
+    beta_spline,
+    beta_k,
+    beta_spline_power,
+    nobs,
+    Xmu,
+    Xsig,
     gamma,
     nu,
     n_days,
@@ -53,14 +80,24 @@ def sim_sir(
     logistic_x0,
     reopen_day=1000,
     reopen_speed=0.0,
+    reopen_cap=.5,
 ):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
+    if len(beta_spline) > 0:
+        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
     for day in range(n_days):
         y = S, E, I, R
-        # evaluate logistic
-        sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
-        sd *= reopenfn(day, reopen_day, reopen_speed)
+        # evaluate splines
+        if len(beta_spline) > 0:
+            X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+            # X = scale(X, Xmu, Xsig)
+            #scale to prevent overflows and make the penalties comparable across bases
+            XB = float(X@beta_spline)
+            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
+        else:
+            sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
+        sd *= reopenfn(day, reopen_day, reopen_speed, reopen_cap)
         beta_t = beta * (1 - sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
@@ -70,6 +107,28 @@ def sim_sir(
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
     return s, e, i, r
 
+
+# # compute X scale factor.  first need to compute who X matrix across all days
+# nobs = 100
+# n_days = 100
+# beta_spline_power = 2
+# beta_spline = np.random.uniform(size = len(knots))
+# X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
+# # need to be careful with this:  apply the scaling to the new X's when predicting
+
+
+
+def power_spline(x, knots, n, xtrim):
+    if x > xtrim: #trim the ends of the spline to prevent nonsense extrapolation
+        x = xtrim + 1
+    spl = x - np.array(knots)
+    spl[spl<0] = 0
+    return spl**n
+
+'''
+Plan:  
+    beta_t = L/(1 + np.exp(XB))
+'''
 
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
@@ -94,6 +153,8 @@ def qdraw(qvec, p_df):
                 p = (qvec[i], p_df.p1.iloc[i], p_df.p2.iloc[i])
             elif p_df.distribution.iloc[i] == "uniform":
                 p = (qvec[i], p_df.p1.iloc[i], p_df.p1.iloc[i] + p_df.p2.iloc[i])
+            elif p_df.distribution.iloc[i] == "norm":
+                p = (qvec[i], p_df.p1.iloc[i], p_df.p2.iloc[i])
             out = dict(
                 param=p_df.param.iloc[i],
                 val=getattr(sps, p_df.distribution.iloc[i]).ppf(*p),
@@ -139,10 +200,26 @@ def SIR_from_params(p_df):
     logistic_k = float(p_df.val.loc[p_df.param == "logistic_k"])
     logistic_L = float(p_df.val.loc[p_df.param == "logistic_L"])
     logistic_x0 = float(p_df.val.loc[p_df.param == "logistic_x0"])
+    nu = float(p_df.val.loc[p_df.param == "nu"])
     beta = float(
         p_df.val.loc[p_df.param == "beta"]
     )  # get beta directly rather than via doubling time
-    nu = float(p_df.val.loc[p_df.param == "nu"])
+    # assemble the coefficient vector for the splines
+    beta_spline = np.array(p_df.val.loc[p_df.param.str.contains('beta_spline_coef')]) #this evaluates to an empty array if it's not in the params
+    if len(beta_spline) > 0:
+        b0 = float(p_df.val.loc[p_df.param == "b0"])
+        beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
+        nobs = float(p_df.val.loc[p_df.param == "nobs"])
+        beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
+        Xmu = p_df.loc[p_df.param == "Xmu", 'val'].iloc[0]
+        Xsig = p_df.loc[p_df.param == "Xsig", 'val'].iloc[0]
+    else:
+        beta_spline_power = None
+        beta_k = None
+        nobs = None
+        b0 = None
+        Xmu, Xsig = None, None
+        
 
     reopen_day, reopen_speed = 1000, 0.0
     if "reopen_day" in p_df.param.values:
@@ -176,6 +253,13 @@ def SIR_from_params(p_df):
         R=0.0,
         alpha=alpha,
         beta=beta,
+        b0=b0,
+        beta_spline = beta_spline,
+        beta_k = beta_k,
+        beta_spline_power = beta_spline_power,
+        Xmu = Xmu,
+        Xsig = Xsig,
+        nobs = nobs,
         gamma=gamma,
         nu=nu,
         n_days=n_days + offset,

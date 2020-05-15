@@ -303,14 +303,13 @@ def xval_wrapper(pen, win, parameter_file_path, splines, spline_power,
                     error = e)
 
 
-
 def main():
     """Executes the command line script
     """
     
     if __name__ == "__main__":
-        parameter_file_path = 'data/HUP_parameters.csv'
-        parameters = read_parameters('data/HUP_parameters.csv')
+        parameter_file_path = 'data/foo.csv'
+        parameters = read_parameters('data/foo.csv')
         data_file_path = 'data/HUP_ts.csv'
         data = read_data(data_file_path)
         error_file_path = 'data/data_errors.csv'
@@ -321,9 +320,9 @@ def main():
         xval = True
         k = 10
         spline_power = 2
-        splines = np.arange(0, 
-                        data.shape[0],
-                        int(data.shape[0]/k))
+        splines = np.linspace(0, 
+                        data.shape[0]-5,
+                        k).astype(int)
         win = 40
         pen = .002
         beta_fun = 'flexible_beta'
