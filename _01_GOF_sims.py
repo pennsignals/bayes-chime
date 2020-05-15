@@ -282,35 +282,35 @@ def do_chains(n_iters,
 
 def main():
     # if __name__ == "__main__":
-        n_chains = 8
-        n_iters = 3000
-        penalty = .25
-        fit_penalty = False
-        sample_obs = False
-        as_of_days_ago = 0
-        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-        # impute vent with the proportion of hosp.  this is a crude hack
-        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-            census_ts.vent.isna()
-        ] * np.mean(census_ts.vent / census_ts.hosp)
-        # import parameters
-        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-        flexible_beta = True
-        fit_penalty = True
-        y_max = None
-        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        burn_in = 2000
-        prefix = ""
-        reopen_day = 100
-        reopen_speed = .1
-        reopen_cap = .5
+        # n_chains = 8
+        # n_iters = 3000
+        # penalty = .25
+        # fit_penalty = False
+        # sample_obs = False
+        # as_of_days_ago = 0
+        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+        # # impute vent with the proportion of hosp.  this is a crude hack
+        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        #     census_ts.vent.isna()
+        # ] * np.mean(census_ts.vent / census_ts.hosp)
+        # # import parameters
+        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+        # flexible_beta = True
+        # fit_penalty = True
+        # y_max = None
+        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        # burn_in = 2000
+        # prefix = ""
+        # reopen_day = 100
+        # reopen_speed = .1
+        # reopen_cap = .5
         
-        forecast_change_prior_mean = 0
-        forecast_change_prior_sd = -99920
-        forecast_priors = dict(mu = forecast_change_prior_mean,
-                                sig = forecast_change_prior_sd)
-        ignore_vent = True
+        # forecast_change_prior_mean = 0
+        # forecast_change_prior_sd = -99920
+        # forecast_priors = dict(mu = forecast_change_prior_mean,
+        #                         sig = forecast_change_prior_sd)
+        # ignore_vent = True
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
