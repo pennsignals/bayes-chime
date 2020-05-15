@@ -92,7 +92,7 @@ def do_shrinkage(pos, shrinkage, shrink_mask):
 
 
 def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout, 
-             sample_obs, forecast_priors):
+             sample_obs, forecast_priors, ignore_vent):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
     n_obs = obs.shape[0]
     nobs = n_obs-holdout
@@ -119,7 +119,8 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
         if any(residuals_vent == 0):
             residuals_vent[residuals_vent == 0] = 0.01
         sigma2 = np.var(residuals_vent)
-        LL += loglik(residuals_vent)
+        if ignore_vent is False:
+            LL += loglik(residuals_vent)
 
     # loss for hosp
     residuals_hosp = (
@@ -172,7 +173,8 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
 
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
-          sample_obs):
+          sample_obs,
+          ignore_vent):
     np.random.seed(seed)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -188,7 +190,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         shrink_mask = shrink_mask,
         holdout=holdout,
         sample_obs=sample_obs,
-        forecast_priors = forecast_priors
+        forecast_priors = forecast_priors,
+        ignore_vent = ignore_vent
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
@@ -204,7 +207,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
                 shrink_mask = shrink_mask,
                 holdout=holdout,
                 sample_obs=sample_obs,
-                forecast_priors = forecast_priors
+                forecast_priors = forecast_priors,
+                ignore_vent = ignore_vent
             )
             p_accept = np.exp(proposed_pos["posterior"] - current_pos["posterior"])
             if U[ii] < p_accept:
@@ -245,10 +249,10 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
-                  forecast_priors):
+                  forecast_priors, ignore_vent):
     return chain(n_iters = n_iters, seed = seed, params=params, 
                  obs=obs, shrinkage=shrinkage, holdout=holdout,
-                 forecast_priors = forecast_priors)["test_loss"]
+                 forecast_priors = forecast_priors, ignore_vent = ignore_vent)["test_loss"]
 
 
 def do_chains(n_iters, 
@@ -259,9 +263,10 @@ def do_chains(n_iters,
               holdout, 
               n_chains, 
               forecast_priors, 
-              parallel):
+              parallel,
+              ignore_vent):
     tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, \
-                           forecast_priors, sample_obs) \
+                           forecast_priors, sample_obs, ignore_vent) \
                           for i in range(n_chains)]
     # get the final answer based on the best penalty
     if parallel:
@@ -277,35 +282,35 @@ def do_chains(n_iters,
 
 def main():
     # if __name__ == "__main__":
-        # n_chains = 8
-        # n_iters = 3000
-        # penalty = .25
-        # fit_penalty = False
-        # sample_obs = False
-        # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-        # # impute vent with the proportion of hosp.  this is a crude hack
-        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        #     census_ts.vent.isna()
-        # ] * np.mean(census_ts.vent / census_ts.hosp)
-        # # import parameters
-        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-        # flexible_beta = True
-        # fit_penalty = True
-        # y_max = None
-        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        # burn_in = 2000
-        # prefix = ""
-        # reopen_day = 100
-        # reopen_speed = .1
-        # reopen_cap = .5
+        n_chains = 8
+        n_iters = 3000
+        penalty = .25
+        fit_penalty = False
+        sample_obs = False
+        as_of_days_ago = 0
+        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+        flexible_beta = True
+        fit_penalty = True
+        y_max = None
+        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        burn_in = 2000
+        prefix = ""
+        reopen_day = 100
+        reopen_speed = .1
+        reopen_cap = .5
         
-        # forecast_change_prior_mean = 0
-        # forecast_change_prior_sd = -99920
-        # forecast_priors = dict(mu = forecast_change_prior_mean,
-        #                         sig = forecast_change_prior_sd)
-        
+        forecast_change_prior_mean = 0
+        forecast_change_prior_sd = -99920
+        forecast_priors = dict(mu = forecast_change_prior_mean,
+                                sig = forecast_change_prior_sd)
+        ignore_vent = True
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -409,6 +414,11 @@ def main():
         action="store_true",
         help="store the chains?  It'll make it take longer, as there is a lot of info in them.",
     )
+    p.add(
+        "--ignore_vent",
+        action="store_true",
+        help="don't fit to vent, multiply the likelihood by zero",
+    )
 
     options = p.parse_args()
         
@@ -428,6 +438,7 @@ def main():
     forecast_priors = dict(mu = options.forecast_change_prior_mean,
                            sig = options.forecast_change_prior_sd)
     save_chains = options.save_chains
+    ignore_vent = options.ignore_vent
 
     if flexible_beta:
         print("doing flexible beta")
@@ -570,7 +581,8 @@ def main():
                    holdout = as_of_days_ago,
                    n_chains = n_chains,
                    forecast_priors = forecast_priors,
-                   parallel=True)
+                   parallel=True,
+                   ignore_vent = ignore_vent)
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
