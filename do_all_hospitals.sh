@@ -6,7 +6,7 @@ n_iters=5000
 burn_in=2000
 reopen_day=100
 reopen_speed=.05
-reopen_cap=.4
+reopen_cap=.2
 
 # Fit flexible beta, with shrinkage specified to be .25 (small)
 for loc in 'CCH' 'LGH' 'PAH' 'Downtown' 'HUP' 'PMC' 'MCP'

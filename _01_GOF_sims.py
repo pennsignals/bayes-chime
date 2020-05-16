@@ -434,7 +434,7 @@ def main():
     y_max = options.y_max
     reopen_day = options.reopen_day
     reopen_speed = options.reopen_speed
-    reopen_cap = options.reopen_speed
+    reopen_cap = options.reopen_cap
     forecast_priors = dict(mu = options.forecast_change_prior_mean,
                            sig = options.forecast_change_prior_sd)
     save_chains = options.save_chains
@@ -633,12 +633,12 @@ def main():
             vent_capacity=None,
         )
 
-    # reopening.  
+    # reopening
     reopen_days = np.arange(reopen_day, 199, 25)
     qmats = []    
     for day in reopen_days:
         pool = mp.Pool(mp.cpu_count())
-        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed) for i in range(df.shape[0])])
+        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
         pool.close()
         reop = np.stack(reop)
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
