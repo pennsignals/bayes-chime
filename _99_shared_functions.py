@@ -123,6 +123,7 @@ def power_spline(x, knots, n, xtrim):
         x = xtrim + 1
     spl = x - np.array(knots)
     spl[spl<0] = 0
+    spl = spl/(xtrim**n)#scaling -- xtrim is the max number of days, so the highest value that the spline could have
     return spl**n
 
 '''

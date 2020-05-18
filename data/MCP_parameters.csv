@@ -19,5 +19,5 @@ hosp_capacity,,constant,,,Hospital Bed Capacity
 vent_capacity,63,constant,,,Ventilator Capacity
 beta_spline_dimension,5,constant,,,number of splines for beta
 beta_spline_power,1,constant,,,polynomial of the truncated power spline
-beta_spline_prior,0,norm,0,0.2,prior on spline terms. Variance of splines is the inverse of an L2 penalty.
+beta_spline_prior,0,norm,0,10,prior on spline terms. Variance of splines is the inverse of an L2 penalty.
 b0,4,norm,-5,2.5,"This is the intercept on the mean of the logistic. It should be large and negative such that 1-logistic(b0+XB) is close to one when X is zero, because the (1-sd) is a coef on beta"
