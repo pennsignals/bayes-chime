@@ -25,7 +25,7 @@ do
 	--reopen_cap $reopen_cap \
 	--prefix $loc \
 	-o "${loc}_flexB_novent" \
-	--ignore_vent
+	--ignore_vent 2>> errors.out &
 done
 
 # fit logistic as a backup
@@ -43,7 +43,7 @@ do
 	--reopen_cap $reopen_cap \
 	--prefix $loc \
 	-o "${loc}_logistic_novent" \
-	--ignore_vent
+	--ignore_vent 2>> errors.out &
 done
 
 # fit a version for LGH and CCH that has a downward prior, reflecting the fact that we know that there were clusters of LTC cases that won't get replicated next week:
@@ -66,7 +66,7 @@ do
 	-o "${loc}_downward_prior_novent" \
 	--forecast_change_prior_mean " -10" \
 	--forecast_change_prior_sd " 5" \
-	--ignore_vent
+	--ignore_vent 2>> errors.out &
 done
 
 
