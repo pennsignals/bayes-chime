@@ -12,6 +12,7 @@ from scipy import stats as sps
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import math
 
 
 from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
@@ -634,7 +635,9 @@ def main():
         )
 
     # reopening
-    reopen_days = np.arange(reopen_day, 199, 25)
+    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
+    reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
+    reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
     qmats = []    
     for day in reopen_days:
         pool = mp.Pool(mp.cpu_count())
