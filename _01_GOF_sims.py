@@ -647,7 +647,6 @@ def main():
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
         qmats.append(reopq)
 
-    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
     dates = pd.date_range(f"{first_day}", periods=201, freq="d")
     fig = plt.figure()
     for i in range(len(reopen_days)):
