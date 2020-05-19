@@ -95,7 +95,7 @@ optional arguments:
   --reopen_speed REOPEN_SPEED
                         how fast to reopen
   --reopen_cap REOPEN_CAP
-                        how much reopening to allow
+                        how much reopening to allow 0: being fully open, 1: being no change in current social distancing
 ```
 <!-- 
 # Usage
