@@ -434,7 +434,7 @@ def main():
     y_max = options.y_max
     reopen_day = options.reopen_day
     reopen_speed = options.reopen_speed
-    reopen_cap = options.reopen_speed
+    reopen_cap = options.reopen_cap
     forecast_priors = dict(mu = options.forecast_change_prior_mean,
                            sig = options.forecast_change_prior_sd)
     save_chains = options.save_chains
@@ -473,12 +473,13 @@ def main():
     # also add the number of observations, as i'll need this for evaluating the knots
     # finally, estimate the scaling factors for the design matrix
     if flexible_beta == True:
+        beta_spline_power = int(params.loc[params.param == "beta_spline_power", 'base'])
         beta_splines = pd.DataFrame([{
             "param": f"beta_spline_coef_{i}",
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":float(params.p2.loc[params.param == 'beta_spline_prior']),
+            "p2":float(params.p2.loc[params.param == 'beta_spline_prior']**beta_spline_power),
             'description':'spile term for beta'
             } for i in range(int(params.base.loc[params.param == "beta_spline_dimension"]))])
         nobsd = pd.DataFrame(dict(param = 'nobs', base = nobs, 
@@ -489,7 +490,6 @@ def main():
         # create the design matrix in order to compute the scaling factors
         # this is critical to make the prior on design matrix flexibility invariant to the scaling of the features
         beta_k = int(params.loc[params.param == "beta_spline_dimension", 'base'])
-        beta_spline_power = int(params.loc[params.param == "beta_spline_power", 'base'])
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
         X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(nobs)])
         Xmu = np.mean(X, axis = 0)
@@ -633,12 +633,12 @@ def main():
             vent_capacity=None,
         )
 
-    # reopening.  
+    # reopening
     reopen_days = np.arange(reopen_day, 199, 25)
     qmats = []    
     for day in reopen_days:
         pool = mp.Pool(mp.cpu_count())
-        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed) for i in range(df.shape[0])])
+        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
         pool.close()
         reop = np.stack(reop)
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)

@@ -569,5 +569,5 @@ df[df$param == "logistic_k", c('base', 'distribution', 'p1', 'p2')] <- c(1, 'gam
 
 write.csv(df, "~/projects/chime_sims/data/parameters.csv")
 
-
+x = beta.parms.from.quantiles(q = c(.2,.5), p = c(.025, .975), plot = T)
 

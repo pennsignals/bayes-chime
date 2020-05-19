@@ -37,11 +37,11 @@ def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
         val = (1 - reopen_speed) ** (day - reopen_day)
         return val if val >= reopen_cap else reopen_cap
 
-def reopen_wrapper(dfi, day, speed):
+def reopen_wrapper(dfi, day, speed, cap):
     p_df = dfi.reset_index()   
     p_df.columns = ['param', 'val']
-    ro = dict(param = ['reopen_day', 'reopen_speed'],
-              val = [day, speed])
+    ro = dict(param = ['reopen_day', 'reopen_speed', 'reopen_cap'],
+              val = [day, speed, cap])
     p_df = pd.concat([p_df, pd.DataFrame(ro)])
     p_df
     SIR_ii = SIR_from_params(p_df)
@@ -78,9 +78,9 @@ def sim_sir(
     logistic_L,
     logistic_k,
     logistic_x0,
-    reopen_day=1000,
-    reopen_speed=0.0,
-    reopen_cap=.5,
+    reopen_day = 8675309,
+    reopen_speed = 0.0,
+    reopen_cap = 1.0,
 ):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
@@ -123,6 +123,7 @@ def power_spline(x, knots, n, xtrim):
         x = xtrim + 1
     spl = x - np.array(knots)
     spl[spl<0] = 0
+    spl = spl/(xtrim**n)#scaling -- xtrim is the max number of days, so the highest value that the spline could have
     return spl**n
 
 '''
@@ -220,12 +221,13 @@ def SIR_from_params(p_df):
         b0 = None
         Xmu, Xsig = None, None
         
-
-    reopen_day, reopen_speed = 1000, 0.0
+    reopen_day, reopen_speed, reopen_cap = 1000, 0.0, 1.0
     if "reopen_day" in p_df.param.values:
         reopen_day = int(p_df.val.loc[p_df.param == "reopen_day"])
     if "reopen_speed" in p_df.param.values:
         reopen_speed = float(p_df.val.loc[p_df.param == "reopen_speed"])
+    if "reopen_cap" in p_df.param.values:
+        reopen_cap = float(p_df.val.loc[p_df.param == "reopen_cap"])
     alpha = 1 / incubation_days
     gamma = 1 / recovery_days
     total_infections = n_hosp / mkt_share / hosp_prop
@@ -268,6 +270,7 @@ def SIR_from_params(p_df):
         logistic_x0=logistic_x0 + offset,
         reopen_day=reopen_day,
         reopen_speed=reopen_speed,
+        reopen_cap=reopen_cap
     )
 
     arrs = {}
