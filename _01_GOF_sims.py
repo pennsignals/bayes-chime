@@ -18,7 +18,7 @@ from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
     reopen_wrapper, form_autoregressive_design_matrix, mobility_autoregression
 
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
-    plt_pairplot_posteriors, SEIR_plot, Rt_plot
+    plt_pairplot_posteriors, SEIR_plot, Rt_plot, posterior_trace_plot
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
@@ -99,18 +99,24 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
     n_obs = np.sum(~np.isnan(obs.hosp))
     assert np.isnan(obs.hosp.iloc[-1]) == False, 'The hospital data must have lower latency than the mobility data'
-    nobs = n_obs-holdout
+    nobs = int(n_obs-holdout)
     p_df = qdraw(pos, params)
     # initialize the log likelihood
     LL = 0
     # do the autoregression
-    fchf = (obs.date.max() - obs.date.loc[~obs.residential.isna()].max()).days
-    AR = mobility_autoregression(p_df,AR_design_matrix, fchf)    
-    LL += loglik(AR['residuals'].flatten())
-    # now take the imputed data and stuff it into obs
-    tm = AR['Zdf'].loc[AR['Zdf'].date.isin(obs.date), "retail_and_recreation":"residential"]
-    obs.loc[:,"retail_and_recreation":"residential"] = tm
-    draw = SIR_from_params(p_df, obs)
+    if any(p_df.param.str.contains('mob_')):
+        fchf = (obs.date.max() - obs.date.loc[~obs.residential.isna()].max()).days + 200
+        AR = mobility_autoregression(p_df,AR_design_matrix, fchf)    
+        LL += loglik(AR['residuals'].flatten())
+        # form the mobility effect, to pass to SIR_from_params
+        mob_coefs = np.array(p_df.val.loc[p_df.param.str.contains('mob_')])
+        tm = AR['Zdf'].loc[AR['Zdf'].date >= obs.date.loc[~obs.hosp.isna()].min(), "retail_and_recreation":"residential"]
+        mob_effect = np.array(tm@mob_coefs)
+    else: 
+        mob_effect = None        
+    draw = SIR_from_params(p_df, mob_effect)
+    # drop observations frtom before we have hosp
+    obs = obs.loc[~obs.hosp.isna()]
     if sample_obs:
         ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
         ynoise_h[0] = 0
@@ -168,13 +174,15 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
         forecast_prior_contrib = (hosp_forecast_prob * vent_forecast_prob)
         forecast_prior_contrib = np.log(forecast_prior_contrib) if forecast_prior_contrib >0 else -np.inf
         posterior += forecast_prior_contrib
-
+    # form output
     out = dict(
         pos=pos,
         draw=draw,
         posterior=posterior,
         residuals_vent=residuals_vent,
         residuals_hosp=residuals_hosp,
+        mob_effect = mob_effect,
+        AR_design_matrix = AR_design_matrix
     )
     if holdout > 0:
         res_te_vent = draw["arr"][(n_obs - holdout) : n_obs, 5] - test.vent.values[:n_obs]
@@ -207,7 +215,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         sample_obs=sample_obs,
         forecast_priors = forecast_priors,
         ignore_vent = ignore_vent,
-        AR_design_matrix = Z
+        AR_design_matrix = deepcopy(Z) # need to do the deep copy if you want to reuse the NAs.  they should be over-written each chain, but python uses pointers rather than copies in some completely inscrutable way
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
@@ -225,7 +233,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
                 sample_obs=sample_obs,
                 forecast_priors = forecast_priors,
                 ignore_vent = ignore_vent,
-                AR_design_matrix = Z
+                AR_design_matrix = deepcopy(Z)
             )
             p_accept = np.exp(proposed_pos["posterior"] - current_pos["posterior"])
             if U[ii] < p_accept:
@@ -242,12 +250,19 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         out.update({"arr": current_pos["draw"]["arr_stoch"]})
         out.update({"iter": ii})
         out.update({"chain": seed})
-        out.update({"posterior": proposed_pos["posterior"]})
+        out.update({"posterior": current_pos["posterior"]})
         out.update({"offset": current_pos["draw"]["offset"]})
         out.update({"s": current_pos['draw']['s']})
         out.update({"e": current_pos['draw']['e']})
         out.update({"i": current_pos['draw']['i']})
         out.update({"r": current_pos['draw']['r']})
+        out.update({"mob_effect": current_pos['mob_effect']})
+        # relative contributions ob mobility to Rt
+        mob_coefs = np.array(current_pos['draw']['parms'].val.loc[current_pos['draw']['parms'].param.str.contains('mob_')])
+        for i, term in enumerate(['retail_and_recreation', 'grocery_and_pharmacy',\
+                               'parks','transit_stations', 'workplaces', 'residential']):
+            out.update({f"rel_effect_{term}" :np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]})
+        
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
@@ -312,7 +327,6 @@ def main():
         # import parameters
         params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
         flexible_beta = True
-        fit_penalty = True
         y_max = None
         figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
         outdir = f"/Users/crandrew/projects/chime_sims/output/"
@@ -525,7 +539,7 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":1,
+            "p2":params.p2.loc[params.param == "autoregressive_mobility"],
             'description':f'AR coef of {h} on {i} for lag {j}'
             } for h in google.columns[1:] for i in google.columns[1:] for j in range(1, 3)])
         # day of week
@@ -534,7 +548,7 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":1,
+            "p2":params.p2.loc[params.param == "dow_mobility"],
             'description':f'DOW coef of {i} on {j}'
             } for i in google.columns[1:] for j in range(7)])
         # coefs on ar terms for beta
@@ -543,7 +557,7 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":1,
+            "p2":params.p2.loc[params.param == "mob_coefs"],
             'description':f'mobility coef on {i}'
         } for i in google.columns[1:]])        
         params = pd.concat([params, AR_coefs, DOW_coefs, mob_coefs])
@@ -653,12 +667,15 @@ def main():
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
+    # make plots of chain traces
+    posterior_trace_plot(df, burn_in, figdir, prefix if prefix is not None else "")
+
     # process the output
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
     
-    # do the SD plot
-    SD_plot(census_ts, params, df, figdir, prefix if prefix is not None else "")
+    # # do the SD plot
+    # SD_plot(census_ts, params, df, figdir, prefix if prefix is not None else "")
     
     ## SEIR plot
     SEIR_plot(df=df, 
@@ -679,6 +696,8 @@ def main():
               prefix = prefix if prefix is not None else "",
               params = params,
               census_ts = census_ts)
+
+    # plots of relativel controbution of each type of mobility
 
     # make predictive plot
     n_days = [30, 90, 180]

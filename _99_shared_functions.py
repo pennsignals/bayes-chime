@@ -85,7 +85,8 @@ def sim_sir(
     s, e, i, r = [S], [E], [I], [R]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
-        breakpoint()
+    if mob_effect is None:
+        mob_effect = np.zeros(1000)
     for day in range(n_days):
         y = S, E, I, R
         # evaluate splines
@@ -195,15 +196,30 @@ def mobility_autoregression(p_df, Z, forecast_how_far):
     Zdf.index.tolist()
     whereat = Zdf.day0.loc[Zdf.retail_and_recreation.isna()].index.min()
     col_prefixes = Zdf.loc[:,"retail_and_recreation":"residential"].columns
-    for i in range(whereat,(whereat+forecast_how_far)):
-        # update lag1 cols with last value of yhat
-        # update lag2 cols with second-last value of yhat
-        # update dow determinisitically.
-        for j, col in enumerate(col_prefixes):
-            Zdf.loc[i,[f"{col}_l2", f"{col}_l1"]] = yhat[-2:, j]
-        yh = Zdf.loc[i, f"{col_prefixes[0]}_l1":] @ theta
+
+
+    # # old slow pandas way.      
+    # for i in range(whereat,(whereat+forecast_how_far)):
+    #     for j, col in enumerate(col_prefixes):
+    #         Zdf.loc[i,[f"{col}_l2", f"{col}_l1"]] = yhat[-2:, j]
+    #     yh = Zdf.loc[i, f"{col_prefixes[0]}_l1":] @ theta
+    #     yhat = np.concatenate([yhat, yh.reshape(1,6)])
+    #     Zdf.loc[i, col_prefixes] = Zdf.loc[i-1, col_prefixes] + yh
+        
+    lagcols = [i for i in Zdf.columns if "_l" in i]
+    dowcols = [i for i in Zdf.columns if "day" in i]
+    lagmat = np.array(Zdf[lagcols])
+    dowmat = np.array(Zdf[dowcols])
+    levmat = np.array(Zdf.loc[:, "retail_and_recreation":"residential"])
+    for i in range(whereat,(whereat+forecast_how_far-1)): 
+        lagmat[i,:] = np.squeeze(np.flip(yhat[-2:,:], axis = 0).reshape(1,12, order = "F"))
+        yh = np.concatenate([lagmat[i, :], dowmat[i,:]]) @ theta
         yhat = np.concatenate([yhat, yh.reshape(1,6)])
-        Zdf.loc[i, col_prefixes] = Zdf.loc[i-1, col_prefixes] + yh
+        levmat[i, :] = levmat[i-1,:] + yh
+    # now put the np arrays back into the relevant part of the dataframe
+    Zdf[lagcols] = lagmat
+    Zdf.loc[:, "retail_and_recreation":"residential"] = levmat
+    
     outdict = dict(mse = mse,
                    Zdf = Zdf,
                    residuals = residuals)
@@ -254,7 +270,7 @@ def form_autoregressive_design_matrix(obs):
         return None
     
 
-def SIR_from_params(p_df, obs):
+def SIR_from_params(p_df, mob_effect):
     """
     This function takes the output from the qdraw function
     """
@@ -288,12 +304,7 @@ def SIR_from_params(p_df, obs):
         beta_k = None
         nobs = None
         b0 = None    
-    if any(p_df.param.str.contains('mob_')):
-        # form a vector of the effect of mobility by day 
-        mob_coefs = np.array(p_df.val.loc[p_df.param.str.contains('mob_')])
-        mob_effect = np.array(obs.loc[~obs.hosp.isna(),"retail_and_recreation":"residential"])@mob_coefs
-    else:
-        mob_effect = np.zeros(np.sum(~obs.hosp.isna()))        
+
     reopen_day, reopen_speed, reopen_cap = 1000, 0.0, 1.0
     if "reopen_day" in p_df.param.values:
         reopen_day = int(p_df.val.loc[p_df.param == "reopen_day"])

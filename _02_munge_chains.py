@@ -327,7 +327,6 @@ def SEIR_plot(df, first_day, howfar, figdir, prefix, census_ts, as_of_days_ago):
 
 def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
     dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
-    fig = plt.figure()
     qlist = []
     if 'beta_spline_coef_0' in df.columns:
         nobs = census_ts.shape[0]
@@ -337,10 +336,12 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
         beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
         b0 = np.array(df.b0)
 
+
         for day in range(nobs):
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
             XB = X@beta_spline_coefs.T
-            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB)
+            mob_effect = df['mob_effect'].apply(lambda x: x[df.offset.iloc[0]+day])
+            sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + mob_effect)
             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
             beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
             qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))
@@ -380,6 +381,18 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
         ls="--")
     fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt.pdf"))
 
+
+def posterior_trace_plot(df, burn_in, figdir, prefix = ""):
+    fig = plt.figure()
+    for i in df.chain.unique():
+        plt.plot(list(range(len(df.posterior.loc[df.chain == i]))),
+                  df.posterior.loc[df.chain == i],
+                  linewidth = .3)
+    plt.axvline(x = burn_in, label = "burn-in")
+    plt.ylabel("posterior")
+    plt.xlabel("iteration")
+    plt.legend()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_posterior_trace.pdf"))
 
 
 def main():
