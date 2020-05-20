@@ -12,10 +12,10 @@ from scipy import stats as sps
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+import re
 
 from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
-    reopen_wrapper
+    reopen_wrapper, form_autoregressive_design_matrix, mobility_autoregression
 
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
     plt_pairplot_posteriors, SEIR_plot, Rt_plot
@@ -90,13 +90,27 @@ def do_shrinkage(pos, shrinkage, shrink_mask):
     regularization_penalty = -np.sum(np.log(densities))
     return regularization_penalty
 
-
+# pos = np.random.uniform(size=params.shape[0])
+# obs = census_ts
+# holdout = 0
+# AR_design_matrix = form_autoregressive_design_matrix(obs)
 def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout, 
-             sample_obs, forecast_priors, ignore_vent):
+             sample_obs, forecast_priors, ignore_vent, AR_design_matrix):
     """function takes quantiles of the priors and outputs a posterior and relevant stats"""
-    n_obs = obs.shape[0]
+    n_obs = np.sum(~np.isnan(obs.hosp))
+    assert np.isnan(obs.hosp.iloc[-1]) == False, 'The hospital data must have lower latency than the mobility data'
     nobs = n_obs-holdout
-    draw = SIR_from_params(qdraw(pos, params))
+    p_df = qdraw(pos, params)
+    # initialize the log likelihood
+    LL = 0
+    # do the autoregression
+    fchf = (obs.date.max() - obs.date.loc[~obs.residential.isna()].max()).days
+    AR = mobility_autoregression(p_df,AR_design_matrix, fchf)    
+    LL += loglik(AR['residuals'].flatten())
+    # now take the imputed data and stuff it into obs
+    tm = AR['Zdf'].loc[AR['Zdf'].date.isin(obs.date), "retail_and_recreation":"residential"]
+    obs.loc[:,"retail_and_recreation":"residential"] = tm
+    draw = SIR_from_params(p_df, obs)
     if sample_obs:
         ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
         ynoise_h[0] = 0
@@ -110,7 +124,6 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     else:
         train = obs
     # loss for vent
-    LL = 0
     residuals_vent = None
     if train.vent.sum() > 0:
         residuals_vent = (
@@ -176,6 +189,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
           sample_obs,
           ignore_vent):
     np.random.seed(seed)
+    assert all(np.diff(obs.date).astype(int)>0)
+    Z = form_autoregressive_design_matrix(obs)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
         sq1 = shrinkage / 2
@@ -191,7 +206,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         holdout=holdout,
         sample_obs=sample_obs,
         forecast_priors = forecast_priors,
-        ignore_vent = ignore_vent
+        ignore_vent = ignore_vent,
+        AR_design_matrix = Z
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
@@ -208,7 +224,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
                 holdout=holdout,
                 sample_obs=sample_obs,
                 forecast_priors = forecast_priors,
-                ignore_vent = ignore_vent
+                ignore_vent = ignore_vent,
+                AR_design_matrix = Z
             )
             p_accept = np.exp(proposed_pos["posterior"] - current_pos["posterior"])
             if U[ii] < p_accept:
@@ -279,38 +296,39 @@ def do_chains(n_iters,
     return df
 
 
-
 def main():
     # if __name__ == "__main__":
-        # n_chains = 8
-        # n_iters = 3000
-        # penalty = .25
-        # fit_penalty = False
-        # sample_obs = False
-        # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-        # # impute vent with the proportion of hosp.  this is a crude hack
-        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        #     census_ts.vent.isna()
-        # ] * np.mean(census_ts.vent / census_ts.hosp)
-        # # import parameters
-        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-        # flexible_beta = True
-        # fit_penalty = True
-        # y_max = None
-        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        # burn_in = 2000
-        # prefix = ""
-        # reopen_day = 100
-        # reopen_speed = .1
-        # reopen_cap = .5
-        
-        # forecast_change_prior_mean = 0
-        # forecast_change_prior_sd = -99920
-        # forecast_priors = dict(mu = forecast_change_prior_mean,
-        #                         sig = forecast_change_prior_sd)
-        # ignore_vent = True
+        n_chains = 8
+        n_iters = 3000
+        penalty = .25
+        fit_penalty = False
+        sample_obs = False
+        as_of_days_ago = 0
+        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+        # impute vent with the proportion of hosp.  this is a crude hack
+        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+            census_ts.vent.isna()
+        ] * np.mean(census_ts.vent / census_ts.hosp)
+        # import parameters
+        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+        flexible_beta = True
+        fit_penalty = True
+        y_max = None
+        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        burn_in = 2000
+        prefix = ""
+        reopen_day = 100
+        reopen_speed = .1
+        reopen_cap = .5
+        forecast_change_prior_mean = 0
+        forecast_change_prior_sd = -99920
+        forecast_priors = dict(mu = forecast_change_prior_mean,
+                                sig = forecast_change_prior_sd)
+        ignore_vent = True
+        include_mobility = True
+        location_string = "United States, Pennsylvania, Philadelphia County"
+
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -419,6 +437,17 @@ def main():
         action="store_true",
         help="don't fit to vent, multiply the likelihood by zero",
     )
+    p.add(
+        "--include_mobility",
+        action="store_true",
+        help="whether to download and use google mobility data"
+    )
+    p.add(
+        "--location_string",
+        type="str",
+        default="",
+        help="country, state, city.  Separated by commas.  More generally, country_region, sub_region_1, and sub_region_2 from the google data"
+    )
 
     options = p.parse_args()
         
@@ -439,6 +468,9 @@ def main():
                            sig = options.forecast_change_prior_sd)
     save_chains = options.save_chains
     ignore_vent = options.ignore_vent
+    include_mobility = options.include_mobility
+    location_string = options.location_string
+
 
     if flexible_beta:
         print("doing flexible beta")
@@ -469,6 +501,54 @@ def main():
 ## start here when debug
     nobs = census_ts.shape[0] - as_of_days_ago
 
+    ## mobility.
+    # 1.  Download the data, clean it and difference it
+    # 2.  Set up the coefs 
+    if include_mobility is True:
+        google = pd.read_csv('https://www.gstatic.com/covid19/mobility/Global_Mobility_Report.csv?cachebust=722f3143b586a83f')
+        loc_list = [re.sub(" ", "", i) for i in location_string.split(",")]
+        google = google.loc[(google.country_region.str.replace(" ", "") == loc_list[0]) &
+                            (google.sub_region_1.str.replace(" ", "") == loc_list[1]) & 
+                            (google.sub_region_2.str.replace(" ", "") == loc_list[2])]
+        assert google.shape[0] > 0, f"The mobility data is empty after subsetting.  Something is probably wrong with the location string.  You passed '{location_string}'"
+        assert google.date.nunique() == google.shape[0], f"The location string that you passed in doesn't sufficiently disambiguate the locations.  You passed in '{location_string}'"
+        print(f"Using location data from {str(google.sub_region_2.iloc[0])}")
+        google.drop(columns = ['country_region_code', 'country_region', 'sub_region_1', 'sub_region_2'], inplace = True)
+        google.columns = [re.sub('_percent_change_from_baseline', "", i) for i in google.columns]
+        census_ts.date = pd.to_datetime(census_ts.date)
+        google.date = pd.to_datetime(google.date)
+        census_ts = census_ts.merge(google, how = 'outer')
+        census_ts = census_ts.sort_values("date").reset_index(drop = True)
+        # auto-regressive coefs
+        AR_coefs = pd.DataFrame([{
+            "param": f"AR_{h}_{i}_{j}",
+            'base':0,
+            "distribution":"norm",
+            "p1":0,
+            "p2":1,
+            'description':f'AR coef of {h} on {i} for lag {j}'
+            } for h in google.columns[1:] for i in google.columns[1:] for j in range(1, 3)])
+        # day of week
+        DOW_coefs = pd.DataFrame([{
+            "param": f"DOW_{i}_{j}",
+            'base':0,
+            "distribution":"norm",
+            "p1":0,
+            "p2":1,
+            'description':f'DOW coef of {i} on {j}'
+            } for i in google.columns[1:] for j in range(7)])
+        # coefs on ar terms for beta
+        mob_coefs = pd.DataFrame([{
+            "param": f"mob_{i}",
+            'base':0,
+            "distribution":"norm",
+            "p1":0,
+            "p2":1,
+            'description':f'mobility coef on {i}'
+        } for i in google.columns[1:]])        
+        params = pd.concat([params, AR_coefs, DOW_coefs, mob_coefs])
+
+
     # expand out the spline terms and append them to params
     # also add the number of observations, as i'll need this for evaluating the knots
     # finally, estimate the scaling factors for the design matrix
@@ -487,20 +567,7 @@ def main():
                                   p2 = np.nan, 
                                   description = 'number of observations(days)'), 
                              index = [0])
-        # create the design matrix in order to compute the scaling factors
-        # this is critical to make the prior on design matrix flexibility invariant to the scaling of the features
-        beta_k = int(params.loc[params.param == "beta_spline_dimension", 'base'])
-        knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
-        X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(nobs)])
-        Xmu = np.mean(X, axis = 0)
-        Xsig = np.std(X, axis = 0)
-        Xscale = pd.DataFrame(dict(param = ['Xmu', 'Xsig'], 
-                                   base = [Xmu, Xsig], 
-                                   distribution = "constant", 
-                                   p1 = [np.nan, np.nan], 
-                                   p2 = [np.nan, np.nan], 
-                                   description = ['','']))
-        params = pd.concat([params, beta_splines, nobsd, Xscale])
+        params = pd.concat([params, beta_splines, nobsd])
         # set the ununsed ones to constant
         params.loc[params.param.isin(['logistic_k', 
                                       'logistic_L', 

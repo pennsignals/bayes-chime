@@ -69,9 +69,8 @@ def sim_sir(
     beta_spline,
     beta_k,
     beta_spline_power,
+    mob_effect,
     nobs,
-    Xmu,
-    Xsig,
     gamma,
     nu,
     n_days,
@@ -86,15 +85,14 @@ def sim_sir(
     s, e, i, r = [S], [E], [I], [R]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
+        breakpoint()
     for day in range(n_days):
         y = S, E, I, R
         # evaluate splines
         if len(beta_spline) > 0:
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
-            # X = scale(X, Xmu, Xsig)
-            #scale to prevent overflows and make the penalties comparable across bases
             XB = float(X@beta_spline)
-            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
+            sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB + mob_effect[day])
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         sd *= reopenfn(day, reopen_day, reopen_speed, reopen_cap)
@@ -107,14 +105,6 @@ def sim_sir(
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
     return s, e, i, r
 
-
-# # compute X scale factor.  first need to compute who X matrix across all days
-# nobs = 100
-# n_days = 100
-# beta_spline_power = 2
-# beta_spline = np.random.uniform(size = len(knots))
-# X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
-# # need to be careful with this:  apply the scaling to the new X's when predicting
 
 
 
@@ -134,7 +124,8 @@ Plan:
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
 
-
+# qvec = pos
+# p_df = params
 def qdraw(qvec, p_df):
     """
     Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
@@ -164,7 +155,8 @@ def qdraw(qvec, p_df):
             p_pdf = (out["val"],) + p[1:]
             out.update({"prob": getattr(sps, p_df.distribution.iloc[i]).pdf(*p_pdf)})
         outdicts.append(out)
-    return pd.DataFrame(outdicts)
+    p_df = pd.DataFrame(outdicts)
+    return p_df
 
 
 def jumper(start, jump_sd):
@@ -182,8 +174,87 @@ def compute_census(projection_admits_series, mean_los):
         census.append(c)
     return np.array(census[1:])
 
+# obs = census_ts
+# Z = form_autoregressive_design_matrix(obs)
+def mobility_autoregression(p_df, Z, forecast_how_far):
+    # form the coef matrix
+    Zdf = Z['Zdf']
+    Z = Z['Z']
+    AR_coefs = np.array(p_df.val.loc[p_df.param.str.contains('AR_')])
+    AR_mat = AR_coefs.reshape(len(AR_coefs)//6, 6, order = "F") # each column corresponds with one Y output
+    DOW_coefs = np.array(p_df.val.loc[p_df.param.str.contains('DOW_')])
+    DOW_mat = DOW_coefs.reshape(len(DOW_coefs)//6, 6, order = "F") # each column corresponds with one Y output
+    theta = np.concatenate([AR_mat, DOW_mat])
+    # do the in-sample fit    
+    yhat = Z@theta
+    base = np.array(Zdf.loc[:,"retail_and_recreation":"residential"].iloc[0]).reshape(1,6)
+    ycum = np.cumsum(np.concatenate([base, np.zeros((2, 6)), yhat]), axis = 0)
+    residuals = ycum - np.array(Zdf.loc[:,"retail_and_recreation":"residential"].iloc[:ycum.shape[0]])
+    mse = np.mean(residuals**2)
+    # forecast.  take the latest value of yhat and use it to update Z
+    Zdf.index.tolist()
+    whereat = Zdf.day0.loc[Zdf.retail_and_recreation.isna()].index.min()
+    col_prefixes = Zdf.loc[:,"retail_and_recreation":"residential"].columns
+    for i in range(whereat,(whereat+forecast_how_far)):
+        # update lag1 cols with last value of yhat
+        # update lag2 cols with second-last value of yhat
+        # update dow determinisitically.
+        for j, col in enumerate(col_prefixes):
+            Zdf.loc[i,[f"{col}_l2", f"{col}_l1"]] = yhat[-2:, j]
+        yh = Zdf.loc[i, f"{col_prefixes[0]}_l1":] @ theta
+        yhat = np.concatenate([yhat, yh.reshape(1,6)])
+        Zdf.loc[i, col_prefixes] = Zdf.loc[i-1, col_prefixes] + yh
+    outdict = dict(mse = mse,
+                   Zdf = Zdf,
+                   residuals = residuals)
+    return outdict
+    
 
-def SIR_from_params(p_df):
+def form_autoregressive_design_matrix(obs):
+    '''
+    The autoregressive design matrix needs to only get formed once.
+    At present it's hard-coded to be AR2 on a single difference of the data.  
+    This can/should be made into an argument, but attention would also need to be paid to other parts of the code.
+    Especially the parts that form the AR parameter matrix.
+    This function will return nothing when google's column names aren't part of obs.
+    '''
+    if all([i in obs.columns for i in ['retail_and_recreation', \
+                                       'grocery_and_pharmacy', 'parks', \
+                                           'transit_stations', 'workplaces', \
+                                               'residential']]):
+        obs = obs.drop(columns = [i for i in obs.columns if ('hosp' in i) or ('vent' in i)])
+        obs = obs.dropna()
+        day_of_year = pd.get_dummies(obs.date.dt.dayofyear % 7)
+        # difference and lag the data
+        Z = []
+        for i in obs.loc[:,"retail_and_recreation":"residential"].columns:
+            dz = np.diff(obs[i], n=1)
+            dzi = np.stack([dz[1:-1],
+                            dz[:-2]])
+            Z.append(dzi)
+        Z = np.concatenate(Z).T
+        Z = np.concatenate([Z, np.array(day_of_year)[3:, :]], axis = 1)
+        # now make a data frame version for easier forecasting
+        Zpad = np.concatenate([np.zeros((3, 19)), Z]) # the 3 and 19 are hard-coded to reflext 2 lags, 6 variables, and 7 days of the week
+        Zcols = [f"{i}_l{j}" for i in obs.loc[:,"retail_and_recreation":"residential"].columns for j in range(1,3)]
+        Zcols += ["day"+str(i) for i in range(7)]
+        Zpad = pd.DataFrame(Zpad, columns = Zcols)
+        Zdf = pd.concat([obs, Zpad], axis = 1)
+        # expand outwards in time
+        tm = [{"date":i} for i in pd.date_range(Zdf.date.max(), periods = 201)[1:]]
+        tm = pd.DataFrame(tm)
+        dow = pd.get_dummies(tm.date.dt.dayofyear % 7)
+        dow.columns = [f"day{i}" for i in range(7)]
+        tm = pd.concat([tm, dow], axis = 1)
+
+        Zdf = pd.concat([Zdf, pd.DataFrame(tm)]).reset_index(drop = True)        
+        out = dict(Z = Z, Zdf = Zdf)
+        return out
+    else:
+        return None
+    
+
+def SIR_from_params(p_df, obs):
     """
     This function takes the output from the qdraw function
     """
@@ -212,15 +283,17 @@ def SIR_from_params(p_df):
         beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
         nobs = float(p_df.val.loc[p_df.param == "nobs"])
         beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
-        Xmu = p_df.loc[p_df.param == "Xmu", 'val'].iloc[0]
-        Xsig = p_df.loc[p_df.param == "Xsig", 'val'].iloc[0]
     else:
         beta_spline_power = None
         beta_k = None
         nobs = None
-        b0 = None
-        Xmu, Xsig = None, None
-        
+        b0 = None    
+    if any(p_df.param.str.contains('mob_')):
+        # form a vector of the effect of mobility by day 
+        mob_coefs = np.array(p_df.val.loc[p_df.param.str.contains('mob_')])
+        mob_effect = np.array(obs.loc[~obs.hosp.isna(),"retail_and_recreation":"residential"])@mob_coefs
+    else:
+        mob_effect = np.zeros(np.sum(~obs.hosp.isna()))        
     reopen_day, reopen_speed, reopen_cap = 1000, 0.0, 1.0
     if "reopen_day" in p_df.param.values:
         reopen_day = int(p_df.val.loc[p_df.param == "reopen_day"])
@@ -259,8 +332,7 @@ def SIR_from_params(p_df):
         beta_spline = beta_spline,
         beta_k = beta_k,
         beta_spline_power = beta_spline_power,
-        Xmu = Xmu,
-        Xsig = Xsig,
+        mob_effect = mob_effect,
         nobs = nobs,
         gamma=gamma,
         nu=nu,

@@ -7,4 +7,4 @@ output/*
 *.egg-info
 drafts/
 *~
-out_misc/
+old_misc/
