@@ -539,7 +539,7 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":params.p2.loc[params.param == "autoregressive_mobility"],
+            "p2":float(params.p2.loc[params.param == "autoregressive_mobility"]),
             'description':f'AR coef of {h} on {i} for lag {j}'
             } for h in google.columns[1:] for i in google.columns[1:] for j in range(1, 3)])
         # day of week
@@ -548,7 +548,7 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":params.p2.loc[params.param == "dow_mobility"],
+            "p2":float(params.p2.loc[params.param == "dow_mobility"]),
             'description':f'DOW coef of {i} on {j}'
             } for i in google.columns[1:] for j in range(7)])
         # coefs on ar terms for beta
@@ -557,11 +557,11 @@ def main():
             'base':0,
             "distribution":"norm",
             "p1":0,
-            "p2":params.p2.loc[params.param == "mob_coefs"],
+            "p2":float(params.p2.loc[params.param == "mob_coefs"]),
             'description':f'mobility coef on {i}'
         } for i in google.columns[1:]])        
         params = pd.concat([params, AR_coefs, DOW_coefs, mob_coefs])
-
+        params = params.loc[~params.param.isin(['mob_coefs','autoregressive_mobility', "dow_mobility"])]
 
     # expand out the spline terms and append them to params
     # also add the number of observations, as i'll need this for evaluating the knots

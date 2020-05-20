@@ -194,18 +194,7 @@ def mobility_autoregression(p_df, Z, forecast_how_far):
     mse = np.mean(residuals**2)
     # forecast.  take the latest value of yhat and use it to update Z
     Zdf.index.tolist()
-    whereat = Zdf.day0.loc[Zdf.retail_and_recreation.isna()].index.min()
-    col_prefixes = Zdf.loc[:,"retail_and_recreation":"residential"].columns
-
-
-    # # old slow pandas way.      
-    # for i in range(whereat,(whereat+forecast_how_far)):
-    #     for j, col in enumerate(col_prefixes):
-    #         Zdf.loc[i,[f"{col}_l2", f"{col}_l1"]] = yhat[-2:, j]
-    #     yh = Zdf.loc[i, f"{col_prefixes[0]}_l1":] @ theta
-    #     yhat = np.concatenate([yhat, yh.reshape(1,6)])
-    #     Zdf.loc[i, col_prefixes] = Zdf.loc[i-1, col_prefixes] + yh
-        
+    whereat = Zdf.day0.loc[Zdf.retail_and_recreation.isna()].index.min()        
     lagcols = [i for i in Zdf.columns if "_l" in i]
     dowcols = [i for i in Zdf.columns if "day" in i]
     lagmat = np.array(Zdf[lagcols])
