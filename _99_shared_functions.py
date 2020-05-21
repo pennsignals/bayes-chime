@@ -43,8 +43,7 @@ def reopen_wrapper(dfi, day, speed, cap):
     ro = dict(param = ['reopen_day', 'reopen_speed', 'reopen_cap'],
               val = [day, speed, cap])
     p_df = pd.concat([p_df, pd.DataFrame(ro)])
-    p_df
-    SIR_ii = SIR_from_params(p_df)
+    SIR_ii = SIR_from_params(p_df, p_df.val.loc[p_df.param == "mob_effect"].iloc[0])
     return SIR_ii['arr_stoch'][:,3]
 
 

@@ -192,12 +192,16 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     return out
 
 
+seed = 0
+obs = census_ts
+holdout = 0
+shrinkage = .06
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
           ignore_vent):
     np.random.seed(seed)
-    assert all(np.diff(obs.date).astype(int)>0)
+    # assert all(np.diff(obs.date.astype(int))>0)
     Z = form_autoregressive_design_matrix(obs)
     if shrinkage is not None:
         assert (shrinkage < 1) and (shrinkage >= 0.05)
@@ -219,12 +223,12 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
     )
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
-    posterior_history = []
-    jump_sd = .2 # this is the starting value
+    posterior_history, jump_sd_history = [], []
+    jump_sd = .05 # this is the starting value
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
-                jumper(current_pos["pos"], jump_sd),
+                jumper(current_pos["pos"], np.random.exponential(jump_sd)),
                 params,
                 obs,
                 shrinkage=shrinkage,
@@ -262,22 +266,41 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         for i, term in enumerate(['retail_and_recreation', 'grocery_and_pharmacy',\
                                'parks','transit_stations', 'workplaces', 'residential']):
             out.update({f"rel_effect_{term}" :np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]})
+            out.update({term :np.array(current_pos['AR_design_matrix']['Zdf'][term])})
         
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
         posterior_history.append(current_pos['posterior'])
-        if (ii%100 == 0) and (ii>200):
-            # diagnose:
-            always_rejecting = len(list(set(posterior_history[-99:])))<10
-            if (ii>2000) and (ii%1000 == 0):
-                flat = np.mean(posterior_history[-999:]) < np.mean(posterior_history[-1990:-999])
+        if (ii>1000):# and (ii%25 == 0):
+            if len(list(set(posterior_history[-99:])))<50:
+                jump_sd *= .99
             else:
-                flat = False
-            if always_rejecting or flat:
-                jump_sd *= .9
-        # TODO: write down itermediate chains in case of a crash... also re-read if we restart. Good for debugging purposes.
+                jump_sd /= .99
+        if jump_sd < .005:
+            jump_sd = .005
+        jump_sd_history.append(jump_sd)
+        
+        # if (ii%100 == 0) and (ii>200):
+        #     # diagnose:
+        #     always_rejecting = len(list(set(posterior_history[-99:])))<50
+        #     if (ii>2000) and (ii%1000 == 0):
+        #         flat = np.mean(posterior_history[-999:]) < np.mean(posterior_history[-1990:-999])
+        #     else:
+        #         flat = False
+        #     if always_rejecting or flat:
+        #         jump_sd *= .9
+        if (ii%25 == 0):
+            fig, ax = plt.subplots(ncols = 3)
+            ax[0].plot(posterior_history)
+            ax[1].plot(posterior_history[-25:])
+            ax[2].plot(jump_sd_history)
+            fig.savefig("/Users/crandrew/Desktop/foo.pdf")
+            plt.close("all")
+            print(ii)
     return pd.DataFrame(outdicts)
+
+
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
@@ -314,8 +337,8 @@ def do_chains(n_iters,
 def main():
     # if __name__ == "__main__":
         n_chains = 8
-        n_iters = 3000
-        penalty = .25
+        n_iters = 5000
+        penalty = .06
         fit_penalty = False
         sample_obs = False
         as_of_days_ago = 0
@@ -458,7 +481,7 @@ def main():
     )
     p.add(
         "--location_string",
-        type="str",
+        type=str,
         default="",
         help="country, state, city.  Separated by commas.  More generally, country_region, sub_region_1, and sub_region_2 from the google data"
     )
@@ -699,12 +722,14 @@ def main():
 
     # plots of relativel controbution of each type of mobility
 
+
+
     # make predictive plot
     n_days = [30, 90, 180]
     if options.n_days:
         n_days = options.n_days
 
-    first_day = census_ts[census_ts.columns[0]].values[0]
+    first_day = census_ts.date.loc[~census_ts.hosp.isna()].min()    
     for howfar in n_days:
         plt_predictive(
             df,

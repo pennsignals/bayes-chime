@@ -10,7 +10,8 @@ import pandas as pd
 from _99_shared_functions import power_spline
 from utils import DirectoryType
 import warnings
-# plot of logistic curves
+
+
 def logistic(L, k, x0, x):
     return L / (1 + np.exp(-k * (x - x0)))
 
@@ -32,7 +33,7 @@ def plt_predictive(
     file_howfar = howfar
     arrs = np.stack([df.arr.iloc[i] for i in range(df.shape[0])])
     arrq = np.quantile(arrs, axis=0, q=[0.025, 0.25, 0.5, 0.75, 0.975])
-    howfar = len(census_ts.hosp) + howfar
+    howfar = len(census_ts.hosp.dropna()) + howfar
     howfar = np.min([howfar, arrs.shape[1]])
 
     dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
@@ -62,8 +63,8 @@ def plt_predictive(
         edgecolor="k",
     )
     axx.plot_date(
-        dates[: census_ts.hosp.shape[0]],
-        census_ts.hosp,
+        dates[: census_ts.hosp.loc[census_ts.date >= first_day].shape[0]],
+        census_ts.hosp.loc[census_ts.date >= first_day],
         "-",
         color="red",
         label="observed",
@@ -71,7 +72,7 @@ def plt_predictive(
     if hosp_capacity:
         axx.axhline(y=hosp_capacity, color="k", ls="--", label="hospital capacity")
     axx.axvline(
-        x=dates.values[census_ts.hosp.shape[0] - as_of_days_ago],
+        x=dates.values[census_ts.hosp.loc[census_ts.date >= first_day].shape[0] - as_of_days_ago],
         color="grey",
         ls="--",
         label="Last Datapoint Used",
@@ -104,8 +105,8 @@ def plt_predictive(
         edgecolor="k",
     )
     axx.plot_date(
-        dates[: census_ts.vent.shape[0]],
-        census_ts.vent,
+        dates[: census_ts.vent.loc[census_ts.date >= first_day].shape[0]],
+        census_ts.vent.loc[census_ts.date >= first_day],
         "-",
         color="red",
         label="observed",
@@ -113,7 +114,7 @@ def plt_predictive(
     if vent_capacity:
         axx.axhline(y=vent_capacity, color="k", ls="--", label="vent capacity")
     axx.axvline(
-        x=dates.values[census_ts.hosp.shape[0] - as_of_days_ago],
+        x=dates.values[census_ts.hosp.loc[census_ts.date >= first_day].shape[0] - as_of_days_ago],
         color="grey",
         ls="--",
         label="Last Datapoint Used",
@@ -328,6 +329,7 @@ def SEIR_plot(df, first_day, howfar, figdir, prefix, census_ts, as_of_days_ago):
 def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
     dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
     qlist = []
+    qlist_beta, qlist_mob = [], []
     if 'beta_spline_coef_0' in df.columns:
         nobs = census_ts.shape[0]
         beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
@@ -335,8 +337,6 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
         beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
         b0 = np.array(df.b0)
-
-
         for day in range(nobs):
             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
             XB = X@beta_spline_coefs.T
@@ -345,9 +345,9 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
             beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
             qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))
-            # plt.hist(sd)
-    else:
-        
+            qlist_beta.append(np.quantile(b0 + XB, [0.05,.25, 0.5, .75, 0.95]))
+            qlist_mob.append(np.quantile(mob_effect, [0.05,.25, 0.5, .75, 0.95]))
+    else:        
         for day in range(census_ts.shape[0]):
             sd = logistic(
                 df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
@@ -356,6 +356,7 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
             beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
             qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))            
     qmat = np.vstack(qlist)
+    #Rt plot
     fig = plt.figure()
     plt.plot(list(range(census_ts.shape[0])), qmat[:, 2])
     plt.fill_between(
@@ -380,6 +381,59 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
         color="grey",
         ls="--")
     fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt.pdf"))
+    # contribution of beta
+    fig = plt.figure()
+    qmat_beta = np.vstack(qlist_beta)*-1
+    plt.plot(list(range(census_ts.shape[0])), qmat_beta[:, 2])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat_beta[:, 0],
+        y2=qmat_beta[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat_beta[:, 1],
+        y2=qmat_beta[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Contribution to Rt")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
+    plt.title('Contribition of non-mobility interventions to Rt')
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt_beta.pdf"))
+
+    # contribution of mobility
+    fig = plt.figure()
+    qmat_mob = np.vstack(qlist_mob)*-1
+    plt.plot(list(range(census_ts.shape[0])), qmat_mob[:, 2])
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat_mob[:, 0],
+        y2=qmat_mob[:, 4],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.fill_between(
+        x=list(range(census_ts.shape[0])),
+        y1=qmat_mob[:, 1],
+        y2=qmat_mob[:, 3],
+        alpha=0.3,
+        lw=2,
+        edgecolor="k",
+    )
+    plt.ylabel(f"Contribution to Rt")
+    plt.xlabel(f"Days since {census_ts[census_ts.columns[0]].values[0]}")
+    plt.title('Contribition of mobility interventions to Rt')
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt_mob.pdf"))
+
+
+
+
 
 
 def posterior_trace_plot(df, burn_in, figdir, prefix = ""):
@@ -387,7 +441,7 @@ def posterior_trace_plot(df, burn_in, figdir, prefix = ""):
     for i in df.chain.unique():
         plt.plot(list(range(len(df.posterior.loc[df.chain == i]))),
                   df.posterior.loc[df.chain == i],
-                  linewidth = .3)
+                  linewidth = .7)
     plt.axvline(x = burn_in, label = "burn-in")
     plt.ylabel("posterior")
     plt.xlabel("iteration")
