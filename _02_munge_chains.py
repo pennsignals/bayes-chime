@@ -432,8 +432,41 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
     fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt_mob.pdf"))
 
 
+# mobility forecast plots
+def mobilitity_forecast_plot(df, census_ts, howfar, figdir, prefix):
+    howfar = howfar+census_ts.shape[0]
+    dates = pd.date_range(f"{census_ts.date.min()}", periods=howfar, freq="d")
+    fig, ax = plt.subplots(nrows = 6, figsize=(8, 18))
+    for i, term in enumerate(['retail_and_recreation', 'grocery_and_pharmacy', \
+                              'parks', 'transit_stations', 'workplaces', \
+                              'residential']):
+        qmat = np.quantile(np.stack(df[term]), [0.05,.25, 0.5, .75, 0.95], axis = 0)
+        ax[i].plot_date(dates[:len(census_ts[term])], census_ts[term], "-")
+        ax[i].plot_date(dates, qmat[2,:howfar], "--")
+        ax[i].fill_between(
+            x=dates,
+            y1=qmat[0, :howfar],
+            y2=qmat[4, :howfar],
+            alpha=0.3,
+            lw=2,
+            edgecolor="k",
+        )
+        ax[i].fill_between(
+            x=dates,
+            y1=qmat[1, :howfar],
+            y2=qmat[3, :howfar],
+            alpha=0.3,
+            lw=2,
+            edgecolor="k",
+        )
+        ax[i].set_xlabel("relative time spent")
+        ax[i].title.set_text(term)
+        ax[i].axhline(y = 0, color = "black")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_mobility_prediction.pdf"))
 
-
+mobilitity_forecast_plot(df, census_ts, 30, "/Users/crandrew/Desktop/", "")
 
 
 def posterior_trace_plot(df, burn_in, figdir, prefix = ""):

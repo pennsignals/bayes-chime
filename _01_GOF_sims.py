@@ -192,10 +192,10 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     return out
 
 
-seed = 0
-obs = census_ts
-holdout = 0
-shrinkage = .06
+# seed = 0
+# obs = census_ts
+# holdout = 0
+# shrinkage = .06
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
@@ -280,26 +280,17 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         if jump_sd < .005:
             jump_sd = .005
         jump_sd_history.append(jump_sd)
-        
-        # if (ii%100 == 0) and (ii>200):
-        #     # diagnose:
-        #     always_rejecting = len(list(set(posterior_history[-99:])))<50
-        #     if (ii>2000) and (ii%1000 == 0):
-        #         flat = np.mean(posterior_history[-999:]) < np.mean(posterior_history[-1990:-999])
-        #     else:
-        #         flat = False
-        #     if always_rejecting or flat:
-        #         jump_sd *= .9
         if (ii%25 == 0):
-            fig, ax = plt.subplots(ncols = 3)
-            ax[0].plot(posterior_history)
-            ax[1].plot(posterior_history[-25:])
-            ax[2].plot(jump_sd_history)
-            fig.savefig("/Users/crandrew/Desktop/foo.pdf")
-            plt.close("all")
-            print(ii)
+            print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
+        # if (ii%25 == 0):
+        #     fig, ax = plt.subplots(ncols = 3)
+        #     ax[0].plot(posterior_history)
+        #     ax[1].plot(posterior_history[-25:])
+        #     ax[2].plot(jump_sd_history)
+        #     fig.savefig("/Users/crandrew/Desktop/foo.pdf")
+        #     plt.close("all")
+        #     print(ii)
     return pd.DataFrame(outdicts)
-
 
 
 
@@ -720,8 +711,9 @@ def main():
               params = params,
               census_ts = census_ts)
 
-    # plots of relativel controbution of each type of mobility
-
+    # mobility forecast
+    mobilitity_forecast_plot(df, census_ts, howver = 30, figdir = figdir, 
+                             prefix if prefix is not None else "")
 
 
     # make predictive plot
