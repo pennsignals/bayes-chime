@@ -106,8 +106,6 @@ def sim_sir(
         # reoplist.append(reop)
         sd *= reop
         beta_t = beta * (1 - sd)
-        sdlist.append(sd)
-        betatlist.append(beta_t)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
         e.append(E)

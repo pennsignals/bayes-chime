@@ -24,6 +24,5 @@ do
 	--reopen_speed $reopen_speed \
 	--reopen_cap $reopen_cap \
 	-o "${reopen_cap}test" \
-	--ignore_vent \
-	--save_chains 
+	--ignore_vent &
 done
