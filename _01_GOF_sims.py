@@ -23,11 +23,6 @@ from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
-# PARAMDIR = None
-# CENSUS_TS = None
-# PARAMS = None
-# NOBS = None
-# N_ITERS = None
 
 def get_dir_name(options):
     now = datetime.now()
@@ -585,15 +580,7 @@ def main():
                    ignore_vent = ignore_vent)
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
-# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_22_14_26_42_0.0test/output/chains.json.bz2", lines = True)
-# import os
-# census_ts = pd.read_csv(f"{os.getcwd()}/data/CCH_ts.csv")
-# params = pd.read_csv(f"{os.getcwd()}/data/CCH_parameters.csv")
-# figdir = "/Users/crandrew/Desktop/"
-# prefix = ""
-# reopen_day = 100
-# reopen_cap = 0
-# reopen_speed = .05
+
     # process the output    
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
@@ -610,8 +597,6 @@ def main():
               as_of_days_ago = as_of_days_ago,
               census_ts = census_ts)
 
-    
-    
     ## Rt plot
     Rt_plot(df=df, 
               first_day = census_ts[census_ts.columns[0]].values[0], 
