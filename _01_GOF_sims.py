@@ -284,7 +284,7 @@ def do_chains(n_iters,
 def main():
     # if __name__ == "__main__":
         # n_chains = 8
-        # n_iters = 3000
+        # n_iters = 300
         # penalty = .25
         # fit_penalty = False
         # sample_obs = False
@@ -297,15 +297,14 @@ def main():
         # # import parameters
         # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
         # flexible_beta = True
-        # fit_penalty = True
         # y_max = None
         # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
         # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        # burn_in = 2000
+        # burn_in = 200
         # prefix = ""
         # reopen_day = 100
         # reopen_speed = .1
-        # reopen_cap = .5
+        # reopen_cap = 0.0
         
         # forecast_change_prior_mean = 0
         # forecast_change_prior_sd = -99920
@@ -586,8 +585,16 @@ def main():
                    ignore_vent = ignore_vent)
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
-
-    # process the output
+# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_22_14_26_42_0.0test/output/chains.json.bz2", lines = True)
+# import os
+# census_ts = pd.read_csv(f"{os.getcwd()}/data/CCH_ts.csv")
+# params = pd.read_csv(f"{os.getcwd()}/data/CCH_parameters.csv")
+# figdir = "/Users/crandrew/Desktop/"
+# prefix = ""
+# reopen_day = 100
+# reopen_cap = 0
+# reopen_speed = .05
+    # process the output    
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
     
@@ -646,7 +653,6 @@ def main():
         reop = np.stack(reop)
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
         qmats.append(reopq)
-
     dates = pd.date_range(f"{first_day}", periods=201, freq="d")
     fig = plt.figure()
     for i in range(len(reopen_days)):
@@ -663,8 +669,6 @@ def main():
     fig.autofmt_xdate()
     fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
      
-    
-
     mk_projection_tables(df, first_day, outdir)
 
     toplot = df[

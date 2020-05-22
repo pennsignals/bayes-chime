@@ -35,7 +35,9 @@ def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
         return 1.0
     else:
         val = (1 - reopen_speed) ** (day - reopen_day)
-        return val if val >= reopen_cap else reopen_cap
+        val = val if val < reopen_cap else reopen_cap
+        return val
+
 
 def reopen_wrapper(dfi, day, speed, cap):
     p_df = dfi.reset_index()   
@@ -56,7 +58,7 @@ def scale(arr, mu, sig):
     return arr
 
 
-
+import matplotlib.pyplot as plt
 # Run the SIR model forward in time
 def sim_sir(
     S,
@@ -82,8 +84,10 @@ def sim_sir(
     reopen_speed = 0.0,
     reopen_cap = 1.0,
 ):
+    print(reopen_cap)
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
+    # reoplist, sdlist, betatlist = [],[] ,[]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
     for day in range(n_days):
@@ -97,24 +101,24 @@ def sim_sir(
             sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB)
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
-        sd *= reopenfn(day, reopen_day, reopen_speed, reopen_cap)
+        reop = reopenfn(day, reopen_day, reopen_speed, reopen_cap)
+        # reop = reop if reop < reopen_cap else reopen_cap
+        # reoplist.append(reop)
+        sd *= reop
         beta_t = beta * (1 - sd)
+        sdlist.append(sd)
+        betatlist.append(beta_t)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
         e.append(E)
         i.append(I)
         r.append(R)
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
+    # plt.plot(sdlist)
+    # plt.plot(betatlist)
+    # plt.plot(reoplist)
     return s, e, i, r
 
-
-# # compute X scale factor.  first need to compute who X matrix across all days
-# nobs = 100
-# n_days = 100
-# beta_spline_power = 2
-# beta_spline = np.random.uniform(size = len(knots))
-# X = np.stack([power_spline(day, knots, beta_spline_power, xtrim = nobs) for day in range(n_days)])
-# # need to be careful with this:  apply the scaling to the new X's when predicting
 
 
 
