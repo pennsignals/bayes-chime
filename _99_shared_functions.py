@@ -180,6 +180,7 @@ def compute_census(projection_admits_series, mean_los):
 
 # obs = census_ts
 # Z = form_autoregressive_design_matrix(obs)
+# forecast_how_far = fchf
 def mobility_autoregression(p_df, Z, forecast_how_far):
     # form the coef matrix
     Zdf = Z['Zdf']
@@ -203,7 +204,7 @@ def mobility_autoregression(p_df, Z, forecast_how_far):
     lagmat = np.array(Zdf[lagcols])
     dowmat = np.array(Zdf[dowcols])
     levmat = np.array(Zdf.loc[:, "retail_and_recreation":"residential"])
-    for i in range(whereat,(whereat+forecast_how_far-1)): 
+    for i in range(whereat,Zdf.shape[0]):#(whereat+forecast_how_far-1)): 
         lagmat[i,:] = np.squeeze(np.flip(yhat[-2:,:], axis = 0).reshape(1,12, order = "F"))
         yh = np.concatenate([lagmat[i, :], dowmat[i,:]]) @ theta
         yhat = np.concatenate([yhat, yh.reshape(1,6)])

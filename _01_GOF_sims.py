@@ -282,8 +282,8 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         if jump_sd < .005:
             jump_sd = .005
         jump_sd_history.append(jump_sd)
-        if (ii%25 == 0):
-            print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
+        # if (ii%25 == 0):
+        #     print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
         # if (ii%25 == 0):
         #     fig, ax = plt.subplots(ncols = 3)
         #     ax[0].plot(posterior_history)
@@ -714,7 +714,7 @@ def main():
               census_ts = census_ts)
 
     # mobility forecast
-    mobilitity_forecast_plot(df, census_ts, howver = 30, figdir = figdir, 
+    mobilitity_forecast_plot(df, census_ts, howfar = 30, figdir = figdir, 
                              prefix = prefix if prefix is not None else "")
 
 

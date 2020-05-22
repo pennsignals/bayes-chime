@@ -4,8 +4,8 @@
 
 # Set the arguments
 chains=8
-n_iters=500
-burn_in=200
+n_iters=5000
+burn_in=2000
 reopen_day=100
 reopen_speed=.05
 reopen_cap=.5 
