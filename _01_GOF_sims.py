@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import re
+import math
 
 from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
     reopen_wrapper, form_autoregressive_design_matrix, mobility_autoregression
@@ -738,7 +739,9 @@ def main():
         )
 
     # reopening
-    reopen_days = np.arange(reopen_day, 199, 25)
+    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
+    reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
+    reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
     qmats = []    
     for day in reopen_days:
         pool = mp.Pool(mp.cpu_count())
@@ -748,7 +751,6 @@ def main():
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
         qmats.append(reopq)
 
-    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
     dates = pd.date_range(f"{first_day}", periods=201, freq="d")
     fig = plt.figure()
     for i in range(len(reopen_days)):

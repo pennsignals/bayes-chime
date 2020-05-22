@@ -1,0 +1,23 @@
+param,base,distribution,p1,p2,description
+n_hosp,1,constant,,,Number of hospitalized COVID-19 patients on day 1
+hosp_prop,0.025,gamma,6.326832789,0.004168888,Prportion of infections requiring hospitalization
+ICU_prop,0.45,beta,52.05931116,96.86741968,Proportion of hospitalizations admitted to ICU
+vent_prop,0.66,beta,1.98,4.2,Proportion of ICU patients requiring ventilation
+hosp_LOS,12,gamma,113.6500421,0.060667599,Hospital Length of Stay
+ICU_LOS,9,gamma,31.76283994,0.280372732,ICU Length of Stay
+vent_LOS,1.111111111,gamma,32.67829863,0.341518319,time on vent
+mkt_share,1,constant,,,Hospital Market Share (%)
+region_pop,1110000,constant,,,Regional Population
+incubation_days,5,gamma,18.8,0.177,Days from exposure to infectiousness
+recovery_days,14,gamma,9.833457434,1.642265575,Days from infection to recovery
+logistic_k,1,gamma,4.018953794,0.22738215,logistic growth rate
+logistic_x0,14,gamma,6.407435434,2.859728136,logistic days from beginning of time series to middle of logistic
+logistic_L,0.5,beta,2,3,logistic depth of social distancing
+nu,2.5,gamma,93.9552169,0.02634306,Networked contact structure power-law exponent
+beta,0.25,beta,5,10,SEIR beta parameter (force of infection)
+hosp_capacity,,constant,,,Hospital Bed Capacity
+vent_capacity,,constant,,,Ventilator Capacity
+beta_spline_dimension,5,constant,,,number of splines for beta
+beta_spline_power,1,constant,,,polynomial of the truncated power spline
+beta_spline_prior,0,norm,0,10,prior on spline terms. Variance of splines is the inverse of an L2 penalty.
+b0,4,norm,-5,2.5,"This is the intercept on the mean of the logistic. It should be large and negative such that 1-logistic(b0+XB) is close to one when X is zero, because the (1-sd) is a coef on beta"

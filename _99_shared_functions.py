@@ -122,7 +122,11 @@ Plan:
 '''
 
 def logistic(L, k, x0, x):
-    return L / (1 + np.exp(-k * (x - x0)))
+    exp_term = np.exp(-k * (x - x0))
+    # Catch overflow and return nan instead of 0.0
+    if not np.isfinite(exp_term):
+        return np.nan
+    return L / (1 + exp_term)
 
 # qvec = pos
 # p_df = params
