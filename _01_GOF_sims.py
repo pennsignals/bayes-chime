@@ -18,7 +18,8 @@ from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
     reopen_wrapper, form_autoregressive_design_matrix, mobility_autoregression
 
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
-    plt_pairplot_posteriors, SEIR_plot, Rt_plot, posterior_trace_plot
+    plt_pairplot_posteriors, SEIR_plot, Rt_plot, posterior_trace_plot, \
+        mobilitity_forecast_plot
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
@@ -327,35 +328,35 @@ def do_chains(n_iters,
 
 def main():
     # if __name__ == "__main__":
-        n_chains = 8
-        n_iters = 5000
-        penalty = .06
-        fit_penalty = False
-        sample_obs = False
-        as_of_days_ago = 0
-        census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-        # impute vent with the proportion of hosp.  this is a crude hack
-        census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-            census_ts.vent.isna()
-        ] * np.mean(census_ts.vent / census_ts.hosp)
-        # import parameters
-        params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-        flexible_beta = True
-        y_max = None
-        figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        burn_in = 2000
-        prefix = ""
-        reopen_day = 100
-        reopen_speed = .1
-        reopen_cap = .5
-        forecast_change_prior_mean = 0
-        forecast_change_prior_sd = -99920
-        forecast_priors = dict(mu = forecast_change_prior_mean,
-                                sig = forecast_change_prior_sd)
-        ignore_vent = True
-        include_mobility = True
-        location_string = "United States, Pennsylvania, Philadelphia County"
+        # n_chains = 8
+        # n_iters = 5000
+        # penalty = .06
+        # fit_penalty = False
+        # sample_obs = False
+        # as_of_days_ago = 0
+        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+        # # impute vent with the proportion of hosp.  this is a crude hack
+        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        #     census_ts.vent.isna()
+        # ] * np.mean(census_ts.vent / census_ts.hosp)
+        # # import parameters
+        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+        # flexible_beta = True
+        # y_max = None
+        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
+        # burn_in = 2000
+        # prefix = ""
+        # reopen_day = 100
+        # reopen_speed = .1
+        # reopen_cap = .5
+        # forecast_change_prior_mean = 0
+        # forecast_change_prior_sd = -99920
+        # forecast_priors = dict(mu = forecast_change_prior_mean,
+        #                         sig = forecast_change_prior_sd)
+        # ignore_vent = True
+        # include_mobility = True
+        # location_string = "United States, Pennsylvania, Philadelphia County"
 
     # else:
     p = ArgParser()
@@ -713,7 +714,7 @@ def main():
 
     # mobility forecast
     mobilitity_forecast_plot(df, census_ts, howver = 30, figdir = figdir, 
-                             prefix if prefix is not None else "")
+                             prefix = prefix if prefix is not None else "")
 
 
     # make predictive plot

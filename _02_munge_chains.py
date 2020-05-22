@@ -432,6 +432,125 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
     fig.savefig(path.join(f"{figdir}", f"{prefix}_Rt_mob.pdf"))
 
 
+
+
+# # effect of mobility types
+# def dRdmob(df, census_ts):
+# mod_term = "residential"
+# startpos = census_ts.shape[0]
+# howfar = 30
+# termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
+#                               'parks', 'transit_stations', 'workplaces', \
+#                               'residential']
+
+# deltavec = [-1, -.5, 0, .5, 1]
+# mobarr = np.stack([np.stack(df[term]) for term in termlist])
+# coefs = np.stack([df[f"mob_{term}"] for term in termlist])
+# rep_coefs = np.stack([coefs for i in range(mobarr.shape[2])], axis = 2)
+# termdict = {}
+# for mod_term in termlist:
+#     qdict = {}
+#     for dv in deltavec: 
+#         qlist = []
+#         arr_i = mobarr.copy()
+#         # arr_i[[i for i in range(len(termlist)) if termlist[i] == mod_term][0], :, startpos:] += dv*arr_i[[i for i in range(len(termlist)) if termlist[i] == mod_term][0], :, startpos:]
+#         arr_i[:5, :, startpos:] = 0
+#         arr_i[5, :, startpos:] = 0
+#         mob_effects = np.sum(arr_i * rep_coefs, axis = 0)
+#         print(dv)
+#         beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+#         beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+#         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+#         beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+#         b0 = np.array(df.b0)
+#         for day in range(startpos, startpos+howfar):
+#             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+#             XB = X@beta_spline_coefs.T
+#             sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + mob_effects[:,day])
+#             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#             Rt = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days        
+#             qlist.append(Rt)
+#         qmat = np.stack(qlist)
+#         qdict[dv] = np.quantile(qmat, [0.05,.25, 0.5, .75, 0.95], axis = 1)
+#     termdict[mod_term] = qdict
+
+# mod_term = termlist[2]
+# qdict = termdict[mod_term]
+# for i in list(qdict.keys()):
+#     plt.plot(qdict[i][2,:], label = i)
+# plt.legend()
+# plt.title(mod_term)
+
+
+# plt.plot(arr_i[1, 1, startpos:])
+
+# plt.plot( np.quantile(qmat, [0.05,.25, 0.5, .75, 0.95], axis = 1)[2,])
+
+# plt.hist(df[f"mob_{termlist[4]}"])
+
+
+# mobdict['residential'].shape
+# termval = 0
+
+#     for dv in deltavec:
+#         qlist = []
+#         print(dv)
+#         beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+#         beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+#         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+#         beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+#         b0 = np.array(df.b0)
+#         for day in range(startpos, startpos+howfar):
+#             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+#             XB = X@beta_spline_coefs.T
+#             mob_effect = 0
+#             for term in termlist:
+#                 if (term == mod_term) and (day > startpos):
+#                     mob_effect += dv*mobdict[term][:,day]*df[f'mob_{term}']
+#                     print(f"{term}_{day}")
+#                 else:
+#                     mob_effect += mobdict[term][:,day]*df[f'mob_{term}']
+#                     print(f"{term}_AAA_{day}")                    
+#             sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + mob_effect)
+#             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#             Rt = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+            
+#         qdict[dv] = np.quantile(Rt, [0.05,.25, 0.5, .75, 0.95])
+
+#     qdict[-0.1]
+
+
+#     dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
+#     qlist = []
+#     qlist_beta, qlist_mob = [], []
+#     if 'beta_spline_coef_0' in df.columns:
+#         nobs = census_ts.shape[0]
+#         beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+#         beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+#         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+#         beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+#         b0 = np.array(df.b0)
+#         for day in range(nobs):
+#             X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+#             XB = X@beta_spline_coefs.T
+#             mob_effect = df['mob_effect'].apply(lambda x: x[df.offset.iloc[0]+day])
+#             sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + mob_effect)
+#             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#             beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+#             qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))
+#             qlist_beta.append(np.quantile(b0 + XB, [0.05,.25, 0.5, .75, 0.95]))
+#             qlist_mob.append(np.quantile(mob_effect, [0.05,.25, 0.5, .75, 0.95]))
+#     else:        
+#         for day in range(census_ts.shape[0]):
+#             sd = logistic(
+#                 df.logistic_L, df.logistic_k, df.logistic_x0 - df.offset.astype(int), day
+#             )
+#             S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#             beta_t = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days
+#             qlist.append(np.quantile(beta_t, [0.05,.25, 0.5, .75, 0.95]))            
+#     qmat = np.vstack(qlist)
+
+
 # mobility forecast plots
 def mobilitity_forecast_plot(df, census_ts, howfar, figdir, prefix):
     howfar = howfar+census_ts.shape[0]
@@ -465,8 +584,6 @@ def mobilitity_forecast_plot(df, census_ts, howfar, figdir, prefix):
     fig.autofmt_xdate()
     fig.tight_layout()
     fig.savefig(path.join(f"{figdir}", f"{prefix}_mobility_prediction.pdf"))
-
-mobilitity_forecast_plot(df, census_ts, 30, "/Users/crandrew/Desktop/", "")
 
 
 def posterior_trace_plot(df, burn_in, figdir, prefix = ""):
