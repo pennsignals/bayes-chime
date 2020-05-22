@@ -23,11 +23,6 @@ from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
-# PARAMDIR = None
-# CENSUS_TS = None
-# PARAMS = None
-# NOBS = None
-# N_ITERS = None
 
 def get_dir_name(options):
     now = datetime.now()
@@ -284,7 +279,7 @@ def do_chains(n_iters,
 def main():
     # if __name__ == "__main__":
         # n_chains = 8
-        # n_iters = 3000
+        # n_iters = 300
         # penalty = .25
         # fit_penalty = False
         # sample_obs = False
@@ -297,15 +292,14 @@ def main():
         # # import parameters
         # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
         # flexible_beta = True
-        # fit_penalty = True
         # y_max = None
         # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
         # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        # burn_in = 2000
+        # burn_in = 200
         # prefix = ""
         # reopen_day = 100
         # reopen_speed = .1
-        # reopen_cap = .5
+        # reopen_cap = 0.0
         
         # forecast_change_prior_mean = 0
         # forecast_change_prior_sd = -99920
@@ -587,7 +581,7 @@ def main():
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
-    # process the output
+    # process the output    
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
     
@@ -603,8 +597,6 @@ def main():
               as_of_days_ago = as_of_days_ago,
               census_ts = census_ts)
 
-    
-    
     ## Rt plot
     Rt_plot(df=df, 
               first_day = census_ts[census_ts.columns[0]].values[0], 
@@ -646,7 +638,6 @@ def main():
         reop = np.stack(reop)
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
         qmats.append(reopq)
-
     dates = pd.date_range(f"{first_day}", periods=201, freq="d")
     fig = plt.figure()
     for i in range(len(reopen_days)):
@@ -663,8 +654,6 @@ def main():
     fig.autofmt_xdate()
     fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
      
-    
-
     mk_projection_tables(df, first_day, outdir)
 
     toplot = df[
