@@ -35,7 +35,7 @@ def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
         return 1.0
     else:
         val = (1 - reopen_speed) ** (day - reopen_day)
-        val = val if val < reopen_cap else reopen_cap
+        val = val if val > (1-reopen_cap) else (1-reopen_cap)
         return val
 
 
@@ -84,7 +84,6 @@ def sim_sir(
     reopen_speed = 0.0,
     reopen_cap = 1.0,
 ):
-    print(reopen_cap)
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
     # reoplist, sdlist, betatlist = [],[] ,[]
@@ -102,8 +101,6 @@ def sim_sir(
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
         reop = reopenfn(day, reopen_day, reopen_speed, reopen_cap)
-        # reop = reop if reop < reopen_cap else reopen_cap
-        # reoplist.append(reop)
         sd *= reop
         beta_t = beta * (1 - sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
@@ -117,7 +114,16 @@ def sim_sir(
     # plt.plot(reoplist)
     return s, e, i, r
 
+# beta = 3
+# sd = .9
+# reopen_speed = .05
+# day = 200
+# reopen_day = 100
+# reopen_cap = 0
+# val = (1 - reopen_speed) ** (day - reopen_day)
+# val = val if val > reopen_cap else reopen_cap
 
+# beta* (1-sd*val)
 
 
 def power_spline(x, knots, n, xtrim):
