@@ -328,38 +328,6 @@ def do_chains(n_iters,
 
 
 def main():
-    # if __name__ == "__main__":
-        # n_chains = 8
-        # n_iters = 5000
-        # penalty = .06
-        # fit_penalty = False
-        # sample_obs = False
-        # as_of_days_ago = 0
-        # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-        # # impute vent with the proportion of hosp.  this is a crude hack
-        # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        #     census_ts.vent.isna()
-        # ] * np.mean(census_ts.vent / census_ts.hosp)
-        # # import parameters
-        # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-        # flexible_beta = True
-        # y_max = None
-        # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-        # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-        # burn_in = 2000
-        # prefix = ""
-        # reopen_day = 100
-        # reopen_speed = .1
-        # reopen_cap = .5
-        # forecast_change_prior_mean = 0
-        # forecast_change_prior_sd = -99920
-        # forecast_priors = dict(mu = forecast_change_prior_mean,
-        #                         sig = forecast_change_prior_sd)
-        # ignore_vent = True
-        # include_mobility = True
-        # location_string = "United States, Pennsylvania, Philadelphia County"
-
-    # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
     p.add("-P", "--prefix", help="prefix for old-style inputs")
@@ -529,6 +497,37 @@ def main():
 
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
+    assert 2==5
+    n_chains = 8
+    n_iters = 5000
+    penalty = .06
+    fit_penalty = False
+    sample_obs = False
+    as_of_days_ago = 0
+    census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+    # impute vent with the proportion of hosp.  this is a crude hack
+    census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        census_ts.vent.isna()
+    ] * np.mean(census_ts.vent / census_ts.hosp)
+    # import parameters
+    params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+    flexible_beta = True
+    y_max = None
+    figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    burn_in = 2000
+    prefix = ""
+    reopen_day = 100
+    reopen_speed = .1
+    reopen_cap = .5
+    forecast_change_prior_mean = 0
+    forecast_change_prior_sd = -99920
+    forecast_priors = dict(mu = forecast_change_prior_mean,
+                            sig = forecast_change_prior_sd)
+    ignore_vent = True
+    include_mobility = True
+    location_string = "United States, Pennsylvania, Philadelphia County"
+############
     nobs = census_ts.shape[0] - as_of_days_ago
 
     ## mobility.
@@ -549,6 +548,12 @@ def main():
         google.date = pd.to_datetime(google.date)
         census_ts = census_ts.merge(google, how = 'outer')
         census_ts = census_ts.sort_values("date").reset_index(drop = True)
+        # Smooth the time series
+        for v in census_ts.loc[:,"retail_and_recreation":"residential"]:
+            x  = census_ts[v]
+            y = x.rolling(7, center = True).mean()
+            census_ts[v] = y
+        census_ts = census_ts.iloc[3:].reset_index(drop = True)
         # auto-regressive coefs
         AR_coefs = pd.DataFrame([{
             "param": f"AR_{h}_{i}_{j}",
@@ -578,7 +583,7 @@ def main():
         } for i in google.columns[1:]])        
         params = pd.concat([params, AR_coefs, DOW_coefs, mob_coefs])
         params = params.loc[~params.param.isin(['mob_coefs','autoregressive_mobility', "dow_mobility"])]
-
+        
     # expand out the spline terms and append them to params
     # also add the number of observations, as i'll need this for evaluating the knots
     # finally, estimate the scaling factors for the design matrix
