@@ -194,10 +194,10 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     return out
 
 
-# seed = 0
-# obs = census_ts
-# holdout = 0
-# shrinkage = .06
+seed = 1
+obs = census_ts
+holdout = 0
+shrinkage = .06
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
@@ -226,7 +226,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
     posterior_history, jump_sd_history = [], []
-    jump_sd = .05 # this is the starting value
+    jump_sd = .5 # this is the starting value
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
@@ -282,18 +282,18 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         if jump_sd < .005:
             jump_sd = .005
         jump_sd_history.append(jump_sd)
-        # if (ii%25 == 0):
-        #     print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
-        # if (ii%25 == 0):
-        #     fig, ax = plt.subplots(ncols = 3)
-        #     ax[0].plot(posterior_history)
-        #     ax[1].plot(posterior_history[-25:])
-        #     ax[2].plot(jump_sd_history)
-        #     fig.savefig("/Users/crandrew/Desktop/foo.pdf")
-        #     plt.close("all")
-        #     print(ii)
+        if (ii%25 == 0):
+            print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
+            print(posterior_history[-1])
+        if (ii%25 == 0):
+            fig, ax = plt.subplots(ncols = 3)
+            ax[0].plot(posterior_history)
+            ax[1].plot(posterior_history[-25:])
+            ax[2].plot(jump_sd_history)
+            fig.savefig("/Users/crandrew/Desktop/foo.pdf")
+            plt.close("all")
+            print(ii)
     return pd.DataFrame(outdicts)
-
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
@@ -497,36 +497,36 @@ def main():
 
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
-    assert 2==5
-    n_chains = 8
-    n_iters = 5000
-    penalty = .06
-    fit_penalty = False
-    sample_obs = False
-    as_of_days_ago = 0
-    census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-    # impute vent with the proportion of hosp.  this is a crude hack
-    census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        census_ts.vent.isna()
-    ] * np.mean(census_ts.vent / census_ts.hosp)
-    # import parameters
-    params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-    flexible_beta = True
-    y_max = None
-    figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-    outdir = f"/Users/crandrew/projects/chime_sims/output/"
-    burn_in = 2000
-    prefix = ""
-    reopen_day = 100
-    reopen_speed = .1
-    reopen_cap = .5
-    forecast_change_prior_mean = 0
-    forecast_change_prior_sd = -99920
-    forecast_priors = dict(mu = forecast_change_prior_mean,
-                            sig = forecast_change_prior_sd)
-    ignore_vent = True
-    include_mobility = True
-    location_string = "United States, Pennsylvania, Philadelphia County"
+    # assert 2==5
+    # n_chains = 8
+    # n_iters = 5000
+    # penalty = .06
+    # fit_penalty = False
+    # sample_obs = False
+    # as_of_days_ago = 0
+    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+    # # impute vent with the proportion of hosp.  this is a crude hack
+    # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+    #     census_ts.vent.isna()
+    # ] * np.mean(census_ts.vent / census_ts.hosp)
+    # # import parameters
+    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+    # flexible_beta = True
+    # y_max = None
+    # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    # outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    # burn_in = 2000
+    # prefix = ""
+    # reopen_day = 100
+    # reopen_speed = .1
+    # reopen_cap = .5
+    # forecast_change_prior_mean = 0
+    # forecast_change_prior_sd = -99920
+    # forecast_priors = dict(mu = forecast_change_prior_mean,
+    #                         sig = forecast_change_prior_sd)
+    # ignore_vent = True
+    # include_mobility = True
+    # location_string = "United States, Pennsylvania, Philadelphia County"
 ############
     nobs = census_ts.shape[0] - as_of_days_ago
 

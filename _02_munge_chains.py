@@ -324,7 +324,9 @@ def SEIR_plot(df, first_day, howfar, figdir, prefix, census_ts, as_of_days_ago):
     fig.tight_layout()
     fig.savefig(path.join(f"{figdir}", f"{prefix}_SEIR_{howfar}_day.pdf"))
 
-    
+
+
+
 
 def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
     dates = pd.date_range(f"{first_day}", periods=howfar, freq="d")
@@ -599,175 +601,175 @@ def posterior_trace_plot(df, burn_in, figdir, prefix = ""):
     fig.savefig(path.join(f"{figdir}", f"{prefix}_posterior_trace.pdf"))
 
 
-def main():
-    p = ArgParser()
-    p.add("-c", "--my-config", is_config_file=True, help="config file path")
-    p.add(
-        "-o",
-        "--out",
-        help="output directory, '-' for stdin",
-        type=DirectoryType(),
-        required=True,
-    )
-    p.add(
-        "-a",
-        "--as_of",
-        default=0,
-        help="number of days in the past to project from",
-        type=int,
-    )
-    p.add("-y", "--y_max", help="max y-scale for the census graph", type=int)
-    p.add(
-        "-d",
-        "--n_days",
-        help="make a census/admits plot out to n_days",
-        type=int,
-        action="append",
-    )
-    p.add("-P", "--prefix", help="prefix for filenames")
-    p.add(
-        "-pp",
-        "--plot_pairs",
-        action="store_true",
-        help="Plot posterior samples in a pair-plot grid",
-    )
-    p.add(
-        "-pc",
-        "--plot_capacity",
-        action="store_true",
-        help="plot capacity as a horizontal line",
-    )
-    p.add(
-        "-b",
-        "--burn_in",
-        type=int,
-        help="how much of the burn-in to discard",
-        default = 2000
-    )
+# def main():
+#     p = ArgParser()
+#     p.add("-c", "--my-config", is_config_file=True, help="config file path")
+#     p.add(
+#         "-o",
+#         "--out",
+#         help="output directory, '-' for stdin",
+#         type=DirectoryType(),
+#         required=True,
+#     )
+#     p.add(
+#         "-a",
+#         "--as_of",
+#         default=0,
+#         help="number of days in the past to project from",
+#         type=int,
+#     )
+#     p.add("-y", "--y_max", help="max y-scale for the census graph", type=int)
+#     p.add(
+#         "-d",
+#         "--n_days",
+#         help="make a census/admits plot out to n_days",
+#         type=int,
+#         action="append",
+#     )
+#     p.add("-P", "--prefix", help="prefix for filenames")
+#     p.add(
+#         "-pp",
+#         "--plot_pairs",
+#         action="store_true",
+#         help="Plot posterior samples in a pair-plot grid",
+#     )
+#     p.add(
+#         "-pc",
+#         "--plot_capacity",
+#         action="store_true",
+#         help="plot capacity as a horizontal line",
+#     )
+#     p.add(
+#         "-b",
+#         "--burn_in",
+#         type=int,
+#         help="how much of the burn-in to discard",
+#         default = 2000
+#     )
 
-    options = p.parse_args()
-    burn_in = options.burn_in
-    prefix = ""
-    if options.prefix is not None:
-        prefix = f"{options.prefix}_"
+#     options = p.parse_args()
+#     burn_in = options.burn_in
+#     prefix = ""
+#     if options.prefix is not None:
+#         prefix = f"{options.prefix}_"
 
-    n_days = [30, 90, 180]
-    if options.n_days:
-        n_days = options.n_days
+#     n_days = [30, 90, 180]
+#     if options.n_days:
+#         n_days = options.n_days
 
-    dir = options.out
-    print(f"Output directory: {dir}")
-    paramdir = path.join(dir, "parameters")
-    outdir = path.join(dir, "output")
-    figdir = path.join(dir, "figures")
+#     dir = options.out
+#     print(f"Output directory: {dir}")
+#     paramdir = path.join(dir, "parameters")
+#     outdir = path.join(dir, "output")
+#     figdir = path.join(dir, "figures")
 
-    census_ts, params, args = read_inputs(paramdir)
-    first_day = census_ts[census_ts.columns[0]].values[0] #weird chack for non-ascii characters in the input file
+#     census_ts, params, args = read_inputs(paramdir)
+#     first_day = census_ts[census_ts.columns[0]].values[0] #weird chack for non-ascii characters in the input file
 
-    # TODO: This needs to be configurable based on the time period specificed
-    as_of_days_ago = args["as_of"]
-    nobs = census_ts.shape[0] - as_of_days_ago
+#     # TODO: This needs to be configurable based on the time period specificed
+#     as_of_days_ago = args["as_of"]
+#     nobs = census_ts.shape[0] - as_of_days_ago
 
-    # define capacity
-    vent_capacity, hosp_capacity = None, None
-    if options.plot_capacity:
-        vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
-        hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
+#     # define capacity
+#     vent_capacity, hosp_capacity = None, None
+#     if options.plot_capacity:
+#         vent_capacity = float(params.base.loc[params.param == "vent_capacity"])
+#         hosp_capacity = float(params.base.loc[params.param == "hosp_capacity"])
 
-# df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/output/chains.json.bz2", lines = True)
-# census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/census_ts.csv')
-# params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/params.csv')
+# # df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/output/chains.json.bz2", lines = True)
+# # census_ts = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/census_ts.csv')
+# # params = pd.read_csv('/Users/crandrew/projects/chime_sims/output/2020_05_08_20_38_34/parameters/params.csv')
 
-    # Chains
-    df = pd.read_json(
-        path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True
-    )
-    print(f"READ chains file: {df.shape[0]} total iterations")
-    # remove burn-in
+#     # Chains
+#     df = pd.read_json(
+#         path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True
+#     )
+#     print(f"READ chains file: {df.shape[0]} total iterations")
+#     # remove burn-in
     
-    iters_remaining = df.iter.max()-burn_in
-    assert iters_remaining>100, f"Breaking here: you are casting aside {burn_in} iterations as burn-in, but there are only {df.iter.max()} iteratons per chain"
-    if iters_remaining < 1000:
-        warnings.warn(f"You're only using {iters_remaining} iterations per chain.  This may not be fully cromulent.")
-    df = df.loc[(df.iter > burn_in)]
+#     iters_remaining = df.iter.max()-burn_in
+#     assert iters_remaining>100, f"Breaking here: you are casting aside {burn_in} iterations as burn-in, but there are only {df.iter.max()} iteratons per chain"
+#     if iters_remaining < 1000:
+#         warnings.warn(f"You're only using {iters_remaining} iterations per chain.  This may not be fully cromulent.")
+#     df = df.loc[(df.iter > burn_in)]
 
-    # make the social distancing plot
-    SD_plot(census_ts, params, df, figdir, prefix)
+#     # make the social distancing plot
+#     SD_plot(census_ts, params, df, figdir, prefix)
     
-    ##
-    for howfar in n_days:
-        plt_predictive(
-            df,
-            first_day,
-            census_ts,
-            figdir,
-            as_of_days_ago,
-            howfar=howfar,
-            prefix=prefix,
-            y_max=options.y_max,
-            hosp_capacity=hosp_capacity,
-            vent_capacity=vent_capacity,
-        )
+#     ##
+#     for howfar in n_days:
+#         plt_predictive(
+#             df,
+#             first_day,
+#             census_ts,
+#             figdir,
+#             as_of_days_ago,
+#             howfar=howfar,
+#             prefix=prefix,
+#             y_max=options.y_max,
+#             hosp_capacity=hosp_capacity,
+#             vent_capacity=vent_capacity,
+#         )
 
-    mk_projection_tables(df, first_day, outdir)
+#     mk_projection_tables(df, first_day, outdir)
 
-    toplot = df[
-        [
-            "beta",
-            "hosp_prop",
-            "ICU_prop",
-            "vent_prop",
-            "hosp_LOS",
-            "ICU_LOS",
-            "vent_LOS",
-            "incubation_days",
-            "recovery_days",
-            "logistic_k",
-            "logistic_x0",
-            "logistic_L",
-            "nu",
-        ]
-    ]
+#     toplot = df[
+#         [
+#             "beta",
+#             "hosp_prop",
+#             "ICU_prop",
+#             "vent_prop",
+#             "hosp_LOS",
+#             "ICU_LOS",
+#             "vent_LOS",
+#             "incubation_days",
+#             "recovery_days",
+#             "logistic_k",
+#             "logistic_x0",
+#             "logistic_L",
+#             "nu",
+#         ]
+#     ]
 
-    pspace = np.linspace(0.001, 0.999, 1000)
+#     pspace = np.linspace(0.001, 0.999, 1000)
 
-    fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns))
-    for i in range(len(toplot.columns)):
-        cname = toplot.columns[i]
-        if params.loc[params.param == cname, "distribution"].iloc[0] == "gamma":
-            x = sps.gamma.ppf(
-                pspace,
-                params.loc[params.param == cname, "p1"],
-                0,
-                params.loc[params.param == cname, "p2"],
-            )
-            y = sps.gamma.pdf(
-                x,
-                params.loc[params.param == cname, "p1"],
-                0,
-                params.loc[params.param == cname, "p2"],
-            )
-        elif params.loc[params.param == cname, "distribution"].iloc[0] == "beta":
-            x = sps.beta.ppf(
-                pspace,
-                params.loc[params.param == cname, "p1"],
-                params.loc[params.param == cname, "p2"],
-            )
-            y = sps.beta.pdf(
-                x,
-                params.loc[params.param == cname, "p1"],
-                params.loc[params.param == cname, "p2"],
-            )
-        ax[i].plot(x, y, label="prior")
-        ax[i].hist(toplot[cname], density=True, label="posterior", bins=30)
-        ax[i].set_xlabel(params.loc[params.param == cname, "description"].iloc[0])
-        ax[i].legend()
-    plt.tight_layout()
-    fig.savefig(path.join(f"{figdir}", f"{prefix}marginal_posteriors_v2.pdf"))
+#     fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns))
+#     for i in range(len(toplot.columns)):
+#         cname = toplot.columns[i]
+#         if params.loc[params.param == cname, "distribution"].iloc[0] == "gamma":
+#             x = sps.gamma.ppf(
+#                 pspace,
+#                 params.loc[params.param == cname, "p1"],
+#                 0,
+#                 params.loc[params.param == cname, "p2"],
+#             )
+#             y = sps.gamma.pdf(
+#                 x,
+#                 params.loc[params.param == cname, "p1"],
+#                 0,
+#                 params.loc[params.param == cname, "p2"],
+#             )
+#         elif params.loc[params.param == cname, "distribution"].iloc[0] == "beta":
+#             x = sps.beta.ppf(
+#                 pspace,
+#                 params.loc[params.param == cname, "p1"],
+#                 params.loc[params.param == cname, "p2"],
+#             )
+#             y = sps.beta.pdf(
+#                 x,
+#                 params.loc[params.param == cname, "p1"],
+#                 params.loc[params.param == cname, "p2"],
+#             )
+#         ax[i].plot(x, y, label="prior")
+#         ax[i].hist(toplot[cname], density=True, label="posterior", bins=30)
+#         ax[i].set_xlabel(params.loc[params.param == cname, "description"].iloc[0])
+#         ax[i].legend()
+#     plt.tight_layout()
+#     fig.savefig(path.join(f"{figdir}", f"{prefix}marginal_posteriors_v2.pdf"))
 
-    if options.plot_pairs:
-        #  Make a pair plot for diagnosing posterior dependence
-        plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
+#     if options.plot_pairs:
+#         #  Make a pair plot for diagnosing posterior dependence
+#         plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
 
 
 if __name__ == "__main__":
