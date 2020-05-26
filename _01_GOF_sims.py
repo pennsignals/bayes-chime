@@ -184,7 +184,8 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
         residuals_vent=residuals_vent,
         residuals_hosp=residuals_hosp,
         mob_effect = mob_effect,
-        AR_design_matrix = AR_design_matrix
+        AR_design_matrix = AR_design_matrix,
+        position = pos
     )
     if holdout > 0:
         res_te_vent = draw["arr"][(n_obs - holdout) : n_obs, 5] - test.vent.values[:n_obs]
@@ -194,14 +195,15 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     return out
 
 
-seed = 1
-obs = census_ts
-holdout = 0
-shrinkage = .06
+# seed = 1
+# obs = census_ts
+# holdout = 0
+# shrinkage = .06
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
-          ignore_vent):
+          ignore_vent, 
+          startpos):
     np.random.seed(seed)
     # assert all(np.diff(obs.date.astype(int))>0)
     Z = form_autoregressive_design_matrix(obs)
@@ -212,7 +214,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         shrinkage = beta_from_q(sq1, sq2)
         shrink_mask= np.array([1 if "" in i else 0 for i in params.param])
     current_pos = eval_pos(
-        pos = np.random.uniform(size=params.shape[0]),
+        pos = np.random.uniform(size=params.shape[0]) if startpos is None else startpos,
         params = params,
         obs = obs, 
         shrinkage=shrinkage,
@@ -222,11 +224,11 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         forecast_priors = forecast_priors,
         ignore_vent = ignore_vent,
         AR_design_matrix = deepcopy(Z) # need to do the deep copy if you want to reuse the NAs.  they should be over-written each chain, but python uses pointers rather than copies in some completely inscrutable way
-    )
+    ) 
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
     posterior_history, jump_sd_history = [], []
-    jump_sd = .5 # this is the starting value
+    jump_sd = .2 # this is the starting value
     for ii in range(n_iters):
         try:
             proposed_pos = eval_pos(
@@ -263,18 +265,18 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         out.update({"i": current_pos['draw']['i']})
         out.update({"r": current_pos['draw']['r']})
         out.update({"mob_effect": current_pos['mob_effect']})
+        out.update({"pos": current_pos['pos']})
         # relative contributions ob mobility to Rt
         mob_coefs = np.array(current_pos['draw']['parms'].val.loc[current_pos['draw']['parms'].param.str.contains('mob_')])
         for i, term in enumerate(['retail_and_recreation', 'grocery_and_pharmacy',\
                                'parks','transit_stations', 'workplaces', 'residential']):
             out.update({f"rel_effect_{term}" :np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]})
             out.update({term :np.array(current_pos['AR_design_matrix']['Zdf'][term])})
-        
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
         posterior_history.append(current_pos['posterior'])
-        if (ii>1000):# and (ii%25 == 0):
+        if (ii>100):# and (ii%25 == 0):
             if len(list(set(posterior_history[-99:])))<50:
                 jump_sd *= .99
             else:
@@ -297,10 +299,11 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
-                  forecast_priors, ignore_vent):
+                  forecast_priors, ignore_vent, startpos):
     return chain(n_iters = n_iters, seed = seed, params=params, 
                  obs=obs, shrinkage=shrinkage, holdout=holdout,
-                 forecast_priors = forecast_priors, ignore_vent = ignore_vent)["test_loss"]
+                 forecast_priors = forecast_priors, ignore_vent = ignore_vent,
+                 startpos = startpos)["test_loss"]
 
 
 def do_chains(n_iters, 
@@ -312,9 +315,11 @@ def do_chains(n_iters,
               n_chains, 
               forecast_priors, 
               parallel,
-              ignore_vent):
+              ignore_vent,
+              startpos):
     tuples_for_starmap = [(i, params, obs, n_iters, best_penalty, holdout, \
-                           forecast_priors, sample_obs, ignore_vent) \
+                           forecast_priors, sample_obs, ignore_vent, \
+                           startpos) \
                           for i in range(n_chains)]
     # get the final answer based on the best penalty
     if parallel:
@@ -498,35 +503,35 @@ def main():
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
     # assert 2==5
-    # n_chains = 8
-    # n_iters = 5000
-    # penalty = .06
-    # fit_penalty = False
-    # sample_obs = False
-    # as_of_days_ago = 0
-    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-    # # impute vent with the proportion of hosp.  this is a crude hack
-    # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-    #     census_ts.vent.isna()
-    # ] * np.mean(census_ts.vent / census_ts.hosp)
-    # # import parameters
-    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-    # flexible_beta = True
-    # y_max = None
-    # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-    # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-    # burn_in = 2000
-    # prefix = ""
-    # reopen_day = 100
-    # reopen_speed = .1
-    # reopen_cap = .5
-    # forecast_change_prior_mean = 0
-    # forecast_change_prior_sd = -99920
-    # forecast_priors = dict(mu = forecast_change_prior_mean,
-    #                         sig = forecast_change_prior_sd)
-    # ignore_vent = True
-    # include_mobility = True
-    # location_string = "United States, Pennsylvania, Philadelphia County"
+    n_chains = 16
+    n_iters = 8000
+    penalty = .06
+    fit_penalty = False
+    sample_obs = False
+    as_of_days_ago = 0
+    census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
+    # impute vent with the proportion of hosp.  this is a crude hack
+    census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        census_ts.vent.isna()
+    ] * np.mean(census_ts.vent / census_ts.hosp)
+    # import parameters
+    params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
+    flexible_beta = True
+    y_max = None
+    figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    burn_in = 4000
+    prefix = ""
+    reopen_day = 100
+    reopen_speed = .1
+    reopen_cap = .5
+    forecast_change_prior_mean = 0
+    forecast_change_prior_sd = -99920
+    forecast_priors = dict(mu = forecast_change_prior_mean,
+                            sig = forecast_change_prior_sd)
+    ignore_vent = True
+    include_mobility = True
+    location_string = "United States, Pennsylvania, Philadelphia County"
 ############
     nobs = census_ts.shape[0] - as_of_days_ago
 
@@ -674,8 +679,13 @@ def main():
         best_penalty = pen_vec[np.argmin(mean_test_loss)]
     elif penalty < 1:
         best_penalty = penalty
-    # fit the actual chains
-    df = do_chains(n_iters = n_iters, 
+        
+    # voltron mode:
+        # do the chains for a small number of iterations.  
+        # make sure that they output their position
+        # allow them to start from a pre-specified position
+    #start    
+    df = do_chains(n_iters = 500, 
                    params = params, 
                    obs = census_ts, 
                    best_penalty = best_penalty, 
@@ -684,7 +694,44 @@ def main():
                    n_chains = n_chains,
                    forecast_priors = forecast_priors,
                    parallel=True,
-                   ignore_vent = ignore_vent)
+                   ignore_vent = ignore_vent,
+                   startpos = None)
+    imax = 500
+    bestpos = df.pos.loc[df.posterior == np.max(df.posterior)].iloc[0]
+    while imax < burn_in:
+        increment = 500 if (imax + 500) < burn_in else (burn_in - imax )
+        dfi = do_chains(n_iters = increment, 
+                   params = params, 
+                   obs = census_ts, 
+                   best_penalty = best_penalty, 
+                   sample_obs = sample_obs, 
+                   holdout = as_of_days_ago,
+                   n_chains = n_chains,
+                   forecast_priors = forecast_priors,
+                   parallel=True,
+                   ignore_vent = ignore_vent,
+                   startpos = bestpos)
+        dfi.iter = dfi.iter + df.iter.max()+1
+        imax = dfi.iter.max()+1
+        df = pd.concat([df, dfi])
+        lastones = df.loc[df.iter == max(df.iter), ['pos', 'posterior']]
+        bestpos = lastones.pos.loc[lastones.posterior == lastones.posterior.max()].iloc[0]
+    # after burn-in fit the for-real chains
+    dfi = do_chains(n_iters = n_iters - burn_in, 
+           params = params, 
+           obs = census_ts, 
+           best_penalty = best_penalty, 
+           sample_obs = sample_obs, 
+           holdout = as_of_days_ago,
+           n_chains = n_chains,
+           forecast_priors = forecast_priors,
+           parallel=True,
+           ignore_vent = ignore_vent,
+           startpos = bestpos)
+    dfi.iter = dfi.iter + df.iter.max()+1
+    imax = dfi.iter.max()+1
+    df = pd.concat([df, dfi])
+
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
@@ -694,9 +741,7 @@ def main():
     # process the output
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
-    
-    # # do the SD plot
-    # SD_plot(census_ts, params, df, figdir, prefix if prefix is not None else "")
+
     
     ## SEIR plot
     SEIR_plot(df=df, 

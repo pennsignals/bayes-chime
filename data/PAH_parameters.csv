@@ -23,4 +23,4 @@ beta_spline_prior,0,norm,0,10,prior on spline terms. Variance of splines is the 
 b0,4,norm,-5,2.5,"This is the intercept on the mean of the logistic. It should be large and negative such that 1-logistic(b0+XB) is close to one when X is zero, because the (1-sd) is a coef on beta"
 autoregressive_mobility,0,norm,0,0.1,Prior on the coefficients for the vector autoregression of the various sorts of relative mobility from google
 dow_mobility,0,norm,0,0.01,Prior on the day of week dummies that augment the mobility VAR
-mob_coefs,0,norm,0,10,Prior on the coefficients relating mobility to transmissivity
+mob_coefs,0,norm,0,0.1,Prior on the coefficients relating mobility to transmissivity
