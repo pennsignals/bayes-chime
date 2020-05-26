@@ -282,17 +282,17 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         if jump_sd < .005:
             jump_sd = .005
         jump_sd_history.append(jump_sd)
-        if (ii%25 == 0):
-            print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
-            print(posterior_history[-1])
-        if (ii%25 == 0):
-            fig, ax = plt.subplots(ncols = 3)
-            ax[0].plot(posterior_history)
-            ax[1].plot(posterior_history[-25:])
-            ax[2].plot(jump_sd_history)
-            fig.savefig("/Users/crandrew/Desktop/foo.pdf")
-            plt.close("all")
-            print(ii)
+        # if (ii%25 == 0):
+        #     print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
+        #     print(posterior_history[-1])
+        # if (ii%25 == 0):
+        #     fig, ax = plt.subplots(ncols = 3)
+        #     ax[0].plot(posterior_history)
+        #     ax[1].plot(posterior_history[-25:])
+        #     ax[2].plot(jump_sd_history)
+        #     fig.savefig("/Users/crandrew/Desktop/foo.pdf")
+        #     plt.close("all")
+        #     print(ii)
     return pd.DataFrame(outdicts)
 
 
