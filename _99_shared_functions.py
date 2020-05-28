@@ -158,12 +158,6 @@ Plan:
     beta_t = L/(1 + np.exp(XB))
 '''
 
-# def logistic(L, k, x0, x):
-#     exp_term = np.exp(-k * (x - x0))
-#     # Catch overflow and return nan instead of 0.0
-#     if not np.isfinite(exp_term):
-#         return np.nan
-#     return L / (1 + exp_term)
 
 def logistic(L, k, x0, x):
     exp_term = np.exp(-k * (x - x0))
@@ -177,8 +171,6 @@ def logistic(L, k, x0, x):
         else:
             return L / (1 + exp_term)
 
-# qvec = pos
-# p_df = params
 def qdraw(qvec, p_df):
     """
     Function takes a vector of quantiles and returns marginals based on the parameters in the parameter data frame
