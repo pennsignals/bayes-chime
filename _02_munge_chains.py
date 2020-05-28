@@ -462,7 +462,7 @@ def dRdmob(df, census_ts, term, outdir, figdir, prefix):
     ax[0].axhline(0, color="k", ls="--", linewidth = .5)
     ax[0].legend()
     ax[0].grid(True)
-    ax[0].title.set_text(f'Retrospective: effect of distancing in  {term}')
+    ax[0].title.set_text(f'Effect of {term} in logit space')
     ax[0].set_ylabel('Diff hospitalized COVID patients')
     # counterfactual since beginning of outbreak
     ax[1].plot_date(dd[startpos_retr:len(census_ts)], 
