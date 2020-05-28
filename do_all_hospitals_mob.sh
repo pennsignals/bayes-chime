@@ -2,11 +2,11 @@
 
 # Set the arguments
 chains=3
-n_iters=600
-burn_in=500
+n_iters=15000
+burn_in=10000
 reopen_day=100
 reopen_speed=.05
-reopen_cap=.2
+reopen_cap=.5
 
 # Fit flexible beta, with shrinkage specified to be .25 (small)
 for loc in 'PAH' 'Downtown' 'HUP' 'PMC' 'CCH' 'LGH' 'MCP'
@@ -28,7 +28,6 @@ do
 	--penalty .25 \
 	-i $n_iters \
 	-B $burn_in \
-	-pp \
 	--reopen_day $reopen_day \
 	--reopen_speed $reopen_speed \
 	--reopen_cap $reopen_cap \
@@ -46,6 +45,3 @@ done
 
 
 
-# do 
-
-# done

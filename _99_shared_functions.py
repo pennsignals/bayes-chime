@@ -143,8 +143,6 @@ def sim_sir(
     return s, e, i, r
 
 
-
-
 def power_spline(x, knots, n, xtrim):
     if x > xtrim: #trim the ends of the spline to prevent nonsense extrapolation
         x = xtrim + 1
@@ -152,12 +150,6 @@ def power_spline(x, knots, n, xtrim):
     spl[spl<0] = 0
     spl = spl/(xtrim**n)#scaling -- xtrim is the max number of days, so the highest value that the spline could have
     return spl**n
-
-'''
-Plan:  
-    beta_t = L/(1 + np.exp(XB))
-'''
-
 
 def logistic(L, k, x0, x):
     exp_term = np.exp(-k * (x - x0))

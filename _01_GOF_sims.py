@@ -450,6 +450,18 @@ def main():
         help="whether to download and use google mobility data"
     )
     p.add(
+        "--override_beta_prior",
+        type=float,
+        help="ignore the SD of the beta spline prior and replace it with this value",
+        default = -9999.9
+    )
+    p.add(
+        "--override_mobility_prior",
+        type=float,
+        help="ignore the SD of the mobility coefs and replace with this value",
+        default = -9999.9
+    )
+    p.add(
         "--location_string",
         type=str,
         default="",
@@ -488,6 +500,11 @@ def main():
     print(dir)
 
     census_ts, params = get_inputs(options)
+
+    if options.override_beta_prior > 0:
+        params.loc[params.param == 'beta_spline_prior', 'p2'] = options.override_beta_prior
+    if options.override_mobility_prior > 0:
+        params.loc[params.param == 'mob_coefs', 'p2'] = options.override_mobility_prior
 
     if census_ts is None or params is None:
         print("You must specify either --prefix or --parameters and --ts")
