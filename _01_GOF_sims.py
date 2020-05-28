@@ -744,6 +744,8 @@ def main():
     if save_chains:
         df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
 
+    # df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_28_10_42_48_PMC_PMC_mob/output/chains.json.bz2", lines = True)
+
     # make plots of chain traces
     posterior_trace_plot(df, burn_in, figdir, prefix if prefix is not None else "")
 

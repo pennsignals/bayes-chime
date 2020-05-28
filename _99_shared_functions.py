@@ -168,7 +168,7 @@ Plan:
 def logistic(L, k, x0, x):
     exp_term = np.exp(-k * (x - x0))
     # Catch overflow and return nan instead of 0.0
-    if isinstance(exp_term, np.ndarray):
+    if isinstance(exp_term, (np.ndarray, pd.core.series.Series)):
         exp_term[~np.isfinite(exp_term)] = np.nan
         return L / (1 + exp_term)
     else:
