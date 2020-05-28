@@ -530,13 +530,13 @@ def main():
     # fit_penalty = False
     # sample_obs = False
     # as_of_days_ago = 0
-    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"CCH_ts.csv"), encoding = "latin")
+    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"Downtown_ts.csv"), encoding = "latin")
     # # impute vent with the proportion of hosp.  this is a crude hack
     # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
     #     census_ts.vent.isna()
     # ] * np.mean(census_ts.vent / census_ts.hosp)
     # # import parameters
-    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"CCH_parameters.csv"), encoding = "latin")
+    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"Downtown_parameters.csv"), encoding = "latin")
     # flexible_beta = True
     # y_max = None
     # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
@@ -552,7 +552,7 @@ def main():
     #                         sig = forecast_change_prior_sd)
     # ignore_vent = True
     # include_mobility = True
-    # location_string = "United States, Pennsylvania, Chester County"
+    # location_string = "United States, Pennsylvania, Philadelphia County"
 ############
     nobs = census_ts.shape[0] - as_of_days_ago
 
