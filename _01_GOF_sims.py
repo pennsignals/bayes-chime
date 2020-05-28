@@ -20,7 +20,7 @@ from _99_shared_functions import SIR_from_params, qdraw, jumper, power_spline,\
 
 from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
     plt_pairplot_posteriors, SEIR_plot, Rt_plot, posterior_trace_plot, \
-        mobilitity_forecast_plot
+        mobilitity_forecast_plot, dRdmob
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
@@ -199,6 +199,7 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
 # obs = census_ts
 # holdout = 0
 # shrinkage = .06
+# startpos= None
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
@@ -270,8 +271,11 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
         mob_coefs = np.array(current_pos['draw']['parms'].val.loc[current_pos['draw']['parms'].param.str.contains('mob_')])
         for i, term in enumerate(['retail_and_recreation', 'grocery_and_pharmacy',\
                                'parks','transit_stations', 'workplaces', 'residential']):
-            out.update({f"rel_effect_{term}" :np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]})
+            me = np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]
+            out.update({f"rel_effect_{term}" :me})
             out.update({term :np.array(current_pos['AR_design_matrix']['Zdf'][term])})
+        out
+            
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
@@ -503,35 +507,35 @@ def main():
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
     # assert 2==5
-    n_chains = 16
-    n_iters = 8000
-    penalty = .06
-    fit_penalty = False
-    sample_obs = False
-    as_of_days_ago = 0
-    census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"PAH_ts.csv"), encoding = "latin")
-    # impute vent with the proportion of hosp.  this is a crude hack
-    census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-        census_ts.vent.isna()
-    ] * np.mean(census_ts.vent / census_ts.hosp)
-    # import parameters
-    params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"PAH_parameters.csv"), encoding = "latin")
-    flexible_beta = True
-    y_max = None
-    figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-    outdir = f"/Users/crandrew/projects/chime_sims/output/"
-    burn_in = 4000
-    prefix = ""
-    reopen_day = 100
-    reopen_speed = .1
-    reopen_cap = .5
-    forecast_change_prior_mean = 0
-    forecast_change_prior_sd = -99920
-    forecast_priors = dict(mu = forecast_change_prior_mean,
-                            sig = forecast_change_prior_sd)
-    ignore_vent = True
-    include_mobility = True
-    location_string = "United States, Pennsylvania, Philadelphia County"
+    # n_chains = 3
+    # n_iters = 100
+    # penalty = .06
+    # fit_penalty = False
+    # sample_obs = False
+    # as_of_days_ago = 0
+    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"CCH_ts.csv"), encoding = "latin")
+    # # impute vent with the proportion of hosp.  this is a crude hack
+    # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+    #     census_ts.vent.isna()
+    # ] * np.mean(census_ts.vent / census_ts.hosp)
+    # # import parameters
+    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"CCH_parameters.csv"), encoding = "latin")
+    # flexible_beta = True
+    # y_max = None
+    # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    # outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    # burn_in = 10
+    # prefix = ""
+    # reopen_day = 100
+    # reopen_speed = .1
+    # reopen_cap = .5
+    # forecast_change_prior_mean = 0
+    # forecast_change_prior_sd = -99920
+    # forecast_priors = dict(mu = forecast_change_prior_mean,
+    #                         sig = forecast_change_prior_sd)
+    # ignore_vent = True
+    # include_mobility = True
+    # location_string = "United States, Pennsylvania, Chester County"
 ############
     nobs = census_ts.shape[0] - as_of_days_ago
 
@@ -553,9 +557,14 @@ def main():
         google.date = pd.to_datetime(google.date)
         census_ts = census_ts.merge(google, how = 'outer')
         census_ts = census_ts.sort_values("date").reset_index(drop = True)
-        # Smooth the time series
+        
+        # Smooth the time series and impute missings
         for v in census_ts.loc[:,"retail_and_recreation":"residential"]:
             x  = census_ts[v]
+            maxobs = census_ts.date.loc[~census_ts[v].isna()].index.max()
+            for i in range(maxobs):                
+                if (i>=0) & (np.isnan(x.iloc[i])):
+                    x.iloc[i] = x.iloc[i-1]
             y = x.rolling(7, center = True).mean()
             census_ts[v] = y
         census_ts = census_ts.iloc[3:].reset_index(drop = True)
@@ -685,7 +694,7 @@ def main():
         # make sure that they output their position
         # allow them to start from a pre-specified position
     #start    
-    df = do_chains(n_iters = 500, 
+    df = do_chains(n_iters = 500,
                    params = params, 
                    obs = census_ts, 
                    best_penalty = best_penalty, 
@@ -742,7 +751,6 @@ def main():
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
 
-    
     ## SEIR plot
     SEIR_plot(df=df, 
               first_day = census_ts[census_ts.columns[0]].values[0], 
@@ -767,6 +775,12 @@ def main():
     mobilitity_forecast_plot(df, census_ts, howfar = 30, figdir = figdir, 
                              prefix = prefix if prefix is not None else "")
 
+    # relative effects plot
+    termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
+                                  'parks', 'transit_stations', 'workplaces', \
+                                  'residential']
+    for term in termlist:
+        dRdmob(df=df, census_ts = census_ts, term = term, outdir = outdir, prefix = prefix, figdir = figdir)
 
     # make predictive plot
     n_days = [30, 90, 180]
@@ -816,11 +830,10 @@ def main():
     plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
     fig.autofmt_xdate()
     fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
-     
-    
 
+    #
     mk_projection_tables(df, first_day, outdir)
-
+    # marginal posteriors
     toplot = df[
         [
             "beta",
@@ -832,16 +845,14 @@ def main():
             "vent_LOS",
             "incubation_days",
             "recovery_days",
-            "logistic_k",
-            "logistic_x0",
-            "logistic_L",
             "nu",
-        ]
+        ]+[i for i in df.columns if "mob_" in i and "effect" not in i] + \
+            [i for i in df.columns if "beta_spline_coef_" in i]
     ]
 
     pspace = np.linspace(0.001, 0.999, 1000)
 
-    fig, ax = plt.subplots(figsize=(8, 40), ncols=1, nrows=len(toplot.columns))
+    fig, ax = plt.subplots(figsize=(8, toplot.shape[1]*4), ncols=1, nrows=len(toplot.columns))
     for i in range(len(toplot.columns)):
         cname = toplot.columns[i]
         if params.loc[params.param == cname, "distribution"].iloc[0] == "gamma":
@@ -868,6 +879,17 @@ def main():
                 params.loc[params.param == cname, "p1"],
                 params.loc[params.param == cname, "p2"],
             )
+        elif params.loc[params.param == cname, "distribution"].iloc[0] == "norm":
+            x = sps.norm.ppf(
+                pspace,
+                params.loc[params.param == cname, "p1"],
+                params.loc[params.param == cname, "p2"],
+            )
+            y = sps.beta.pdf(
+                x,
+                params.loc[params.param == cname, "p1"],
+                params.loc[params.param == cname, "p2"],
+            )
         ax[i].plot(x, y, label="prior")
         ax[i].hist(toplot[cname], density=True, label="posterior", bins=30)
         ax[i].set_xlabel(params.loc[params.param == cname, "description"].iloc[0])
@@ -875,12 +897,10 @@ def main():
     plt.tight_layout()
     fig.savefig(path.join(f"{figdir}", 
                           f"{prefix if prefix is not None else ''}marginal_posteriors_v2.pdf"))
-
+    # pair plots
     if options.plot_pairs:
         #  Make a pair plot for diagnosing posterior dependence
         plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
-
-
 
     if options.verbose:
         print(f"Output directory: {dir}")

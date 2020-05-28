@@ -6,15 +6,10 @@ from scipy import stats as sps
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from _99_shared_functions import power_spline
+from _99_shared_functions import power_spline, logistic, rel_effect_wrapper, \
+    write_pickle
 from utils import DirectoryType
 import warnings
-
-
-def logistic(L, k, x0, x):
-    return L / (1 + np.exp(-k * (x - x0)))
-
 
 # plot of chains
 def plt_predictive(
@@ -436,20 +431,172 @@ def Rt_plot(df, first_day, howfar, figdir, prefix, params, census_ts):
 
 
 
-# # effect of mobility types
-# def dRdmob(df, census_ts):
-# mod_term = "residential"
-# startpos = census_ts.shape[0]
-# howfar = 30
+
+
+# x = np.stack(df.rel_effect_workplaces)
+# xq = np.quantile(x, [.05, .25, .5, .75 ,.95], axis = 0)
+# for i in range(5):
+#     plt.plot(xq[i,:])
+
+# plt.hist(df.mob_residential*-1)
+
+
 # termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
 #                               'parks', 'transit_stations', 'workplaces', \
 #                               'residential']
+# fig, ax = plt.subplots(nrows = 6, figsize = (5,20), sharex = True)
+# for i, term in enumerate(termlist):
+#     ax[i].hist(df[f"mob_{term}"])
+#     ax[i].set_xlabel(term)
+#     ax[i].axvline(0)
+# fig.savefig("/Users/crandrew/Desktop/mobility_firstpass.pdf")
 
+
+
+
+
+# coef, relative effect in logit space, comparison of what would happen over the next 30 days if 
+
+
+
+# effect of mobility types
+def dRdmob(df, census_ts, term, outdir, figdir, prefix):
+    # relative effect in logit space
+    relef = np.quantile(np.stack(df[f"rel_effect_{term}"]), [.025, .25, .5, .75, .975], axis = 0)
+    # retro
+    startpos_retr = census_ts.loc[~census_ts.hosp.isna()].index.min()
+    retr = rel_effect_wrapper(df, term, startpos_retr)
+    startpos_pros = census_ts.loc[~census_ts.hosp.isna()].index.max()
+    #pros
+    pros = rel_effect_wrapper(df, term, startpos_pros)
+    savedict = dict(relef = relef,
+                    startpos_retr = startpos_retr,
+                    retr = retr,
+                    startpos_pros = startpos_pros,
+                    pros = pros)
+    write_pickle(savedict, path.join(f"{outdir}", f"_relef_plotdat_{term}.pkl"))
+    #plot
+    fig, ax = plt.subplots(ncols = 3, figsize = (15, 5))
+    dd = pd.date_range(start = census_ts.date.iloc[0], periods = len(census_ts))
+    ax[0].plot_date(dd, 
+                  relef[2, :len(census_ts)],"-")
+    ax[0].fill_between(x = dd,
+                     y1 = relef[0, :len(census_ts)],
+                     y2 = relef[4, :len(census_ts)],
+                     alpha = .3,
+                     label = "95% credible region")
+    ax[0].fill_between(x = dd,
+                     y1 = relef[1, :len(census_ts)],
+                     y2 = relef[3, :len(census_ts)],
+                     alpha = .3,
+                     label = "50% credible region")
+    ax[0].axhline(0, color="k", ls="--", linewidth = .5)
+    ax[0].legend()
+    ax[0].grid(True)
+    ax[0].title.set_text(f'Retrospective: effect of distancing in  {term}')
+    ax[0].set_ylabel('Diff hospitalized COVID patients')
+    # counterfactual since beginning of outbreak
+    ax[1].plot_date(dd[startpos_retr:len(census_ts)], 
+                  retr[2, startpos_retr:len(census_ts)],"-")
+    ax[1].fill_between(x = dd[startpos_retr:len(census_ts)],
+                     y1 = retr[0, startpos_retr:len(census_ts)],
+                     y2 = retr[4, startpos_retr:len(census_ts)],
+                     alpha = .3,
+                     label = "95% credible region")
+    ax[1].fill_between(x = dd[startpos_retr:len(census_ts)],
+                     y1 = retr[1, startpos_retr:len(census_ts)],
+                     y2 = retr[3, startpos_retr:len(census_ts)],
+                     alpha = .3, 
+                     label = '50% credible region')
+    ax[1].axhline(0, color="k", ls="--", linewidth = .5)
+    ax[1].legend()
+    ax[1].grid(True)
+    ax[1].title.set_text(f'Retrospective: effect of distancing in  {term}')
+    ax[1].set_ylabel('Diff hospitalized COVID patients')
+    # counterfactual projection
+    dd = pd.date_range(start = census_ts.date.max(), periods = 60)
+    ax[2].plot_date(dd, 
+                  pros[2, startpos_pros:(startpos_pros+60)],"-")
+    plt.fill_between(x = dd,
+                      y1 = pros[0, startpos_pros:(startpos_pros+60)],
+                      y2 = pros[4, startpos_pros:(startpos_pros+60)],
+                      alpha = .3,
+                      label = "95% credible region")
+    ax[2].fill_between(x = dd,
+                     y1 = pros[1, startpos_pros:(startpos_pros+60)],
+                     y2 = pros[3, startpos_pros:(startpos_pros+60)],
+                     alpha = .3, 
+                     label = '50% credible region')
+    ax[2].axhline(0, color="k", ls="--", linewidth = .5)
+    ax[2].legend()
+    ax[2].grid(True)
+    ax[2].title.set_text(f'Prospective: effect of relaxing {term}')
+    ax[2].set_ylabel('Diff hospitalized COVID patients')
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}_relative_effect_{term}.pdf"))
+
+# @@@
+# TOMORROW:  get this working with a trimmed -down dataframe.  establish that it works when there are very few iterations.  
+# LOOK INTO THE ISSUE WITH NON-ZERO DIFFERENCES AT THE OUTSET    
+
+
+    
+    
+# mobarr = np.stack([np.stack(df[term]) for term in termlist])
+# coefs = np.stack([df[f"mob_{term}"] for term in termlist])
+# rep_coefs = np.stack([coefs for i in range(mobarr.shape[2])], axis = 2)
+# baseline = np.sum(mobarr * rep_coefs, axis = 0)
+# qlist = []
+# for day in range(startpos, startpos+howfar):
+#     X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+#     XB = X@beta_spline_coefs.T
+#     sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + baseline[:,day])
+#     S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#     Rt = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days        
+#     qlist.append(Rt)
+# b_qmat = np.quantile(np.stack(qlist), [.025, .25, .5, .75, .975], axis = 1)
+
+
+# for i, term in enumerate(termlist):
+#     arr_i = mobarr.copy()
+#     arr_i[i, :, startpos:(startpos+howfar)] = 0
+#     counterfactual = np.sum(arr_i * rep_coefs, axis = 0)    
+#     # set up the other stuff
+#     beta_k = int(params.loc[params.param == 'beta_spline_dimension', 'base'])
+#     beta_spline_power = int(params.loc[params.param == 'beta_spline_power', 'base'])
+#     knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k) # this has to mirror the knot definition in the _99_helper functons
+#     beta_spline_coefs = np.array(df[[i for i in df.columns if 'beta_spline_coef' in i]])        
+#     b0 = np.array(df.b0)
+#     #counterfactual
+#     qlist = []
+#     for day in range(startpos, startpos+howfar):
+#         X = power_spline(day, knots, beta_spline_power, xtrim = nobs)
+#         XB = X@beta_spline_coefs.T
+#         sd = logistic(L = 1, k=1, x0 = 0, x=b0 + XB + counterfactual[:,day])
+#         S = df['s'].apply(lambda x: x[df.offset.iloc[0]+day])
+#         Rt = (df.beta * (1-sd)) * ((S/float(params.loc[params.param == "region_pop", 'base']))**df.nu)*df.recovery_days        
+#         qlist.append(Rt)
+#     c_qmat = np.quantile(np.stack(qlist), [.025, .25, .5, .75, .975], axis = 1)
+
+
+# plt.plot(b_qmat[2,:])
+# plt.plot(c_qmat[2,:])
+# plt.plot(mobarr[i,0,startpos:])
+# plt.plot(arr_i[i,0,startpos:])
+    
 # deltavec = [-1, -.5, 0, .5, 1]
 # mobarr = np.stack([np.stack(df[term]) for term in termlist])
 # coefs = np.stack([df[f"mob_{term}"] for term in termlist])
 # rep_coefs = np.stack([coefs for i in range(mobarr.shape[2])], axis = 2)
 # termdict = {}
+
+# arr_i = mobarr.copy()
+# arr_i[5, :, startpos:(startpos+howfar)] = 0
+
+# plt.plot(np.mean(mobarr[1,:,:(startpos+howfar)], axis = 0))
+# plt.plot(np.mean(arr_i[1,:,:(startpos+howfar)], axis = 0))
+
 # for mod_term in termlist:
 #     qdict = {}
 #     for dv in deltavec: 
