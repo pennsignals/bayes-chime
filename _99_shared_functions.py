@@ -91,14 +91,10 @@ def scale(arr, mu, sig):
     return arr
 
 
-<<<<<<< HEAD
 def write_pickle(file, path):
     with open(path, 'wb') as handle:
         pickle.dump(file, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-=======
-import matplotlib.pyplot as plt
->>>>>>> testmerge
 # Run the SIR model forward in time
 def sim_sir(
     S,
@@ -148,26 +144,10 @@ def sim_sir(
         i.append(I)
         r.append(R)
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
-    # plt.plot(sdlist)
-    # plt.plot(betatlist)
-    # plt.plot(reoplist)
+
     return s, e, i, r
 
-# beta = 3
-# sd = .9
-# reopen_speed = .05
-# day = 200
-# reopen_day = 100
-# reopen_cap = 0
-# val = (1 - reopen_speed) ** (day - reopen_day)
-# val = val if val > reopen_cap else reopen_cap
 
-<<<<<<< HEAD
-=======
-# beta* (1-sd*val)
-
-
->>>>>>> testmerge
 def power_spline(x, knots, n, xtrim):
     if x > xtrim: #trim the ends of the spline to prevent nonsense extrapolation
         x = xtrim + 1
