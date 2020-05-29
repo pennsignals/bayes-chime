@@ -109,7 +109,7 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     if any(p_df.param.str.contains('mob_')):
         fchf = (obs.date.max() - obs.date.loc[~obs.residential.isna()].max()).days + 200
         AR = mobility_autoregression(p_df,AR_design_matrix, fchf)    
-        LL += loglik(AR['residuals'].flatten())
+        LL += loglik(AR['residuals'].flatten())/6 # the division by 6 is to not over-weight the mobility stuff.  there are siz series
         # form the mobility effect, to pass to SIR_from_params
         mob_coefs = np.array(p_df.val.loc[p_df.param.str.contains('mob_')])
         tm = AR['Zdf'].loc[AR['Zdf'].date >= obs.date.loc[~obs.hosp.isna()].min(), "retail_and_recreation":"residential"]
@@ -200,11 +200,14 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     return out
 
 
-# seed = 1
+# seed = 0
 # obs = census_ts
+# n_iters = 5000
 # holdout = 0
-# shrinkage = .06
-# startpos= None
+# startpos = None
+# ignore_vent = True
+# shrinkage = None
+# shrink_mask = ""
 def chain(seed, params, obs, n_iters, shrinkage, holdout, 
           forecast_priors,
           sample_obs,
@@ -233,7 +236,7 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
     ) 
     outdicts = []
     U = np.random.uniform(0, 1, n_iters)
-    posterior_history, jump_sd_history = [], []
+    posterior_history, jump_sd_history, rlist = [], [], []
     jump_sd = .2 # this is the starting value
     for ii in range(n_iters):
         try:
@@ -292,19 +295,24 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
                 jump_sd /= .99
         if jump_sd < .005:
             jump_sd = .005
-        jump_sd_history.append(jump_sd)
+        # jump_sd_history.append(jump_sd)
+        
+        # r_prop = current_pos['draw']['r'][93]/float(params.loc[params.param == 'region_pop', 'base'])*float(params.loc[params.param == 'mkt_share', 'base'])
+        # rlist.append(r_prop)
         # if (ii%25 == 0):
         #     print(f"chain {seed}, iter {ii}, jump_sd is {jump_sd}, sd of last 25 is {np.std(posterior_history[-25:])}")
         #     print(posterior_history[-1])
         # if (ii%25 == 0):
-        #     fig, ax = plt.subplots(ncols = 3)
+        #     fig, ax = plt.subplots(ncols = 4, figsize = (10, 5))
         #     ax[0].plot(posterior_history)
         #     ax[1].plot(posterior_history[-25:])
         #     ax[2].plot(jump_sd_history)
+        #     ax[3].plot(rlist)
         #     fig.savefig("/Users/crandrew/Desktop/foo.pdf")
         #     plt.close("all")
         #     print(ii)
     return pd.DataFrame(outdicts)
+
 
 
 def get_test_loss(n_iters, seed, holdout, shrinkage, params, obs, 
@@ -528,36 +536,36 @@ def main():
 
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
-    # assert 2==5
-    # n_chains = 3
-    # n_iters = 100
-    # penalty = .06
-    # fit_penalty = False
-    # sample_obs = False
-    # as_of_days_ago = 0
-    # census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"Downtown_ts.csv"), encoding = "latin")
-    # # impute vent with the proportion of hosp.  this is a crude hack
-    # census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
-    #     census_ts.vent.isna()
-    # ] * np.mean(census_ts.vent / census_ts.hosp)
-    # # import parameters
-    # params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"Downtown_parameters.csv"), encoding = "latin")
-    # flexible_beta = True
-    # y_max = None
-    # figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
-    # outdir = f"/Users/crandrew/projects/chime_sims/output/"
-    # burn_in = 10
-    # prefix = ""
-    # reopen_day = 100
-    # reopen_speed = .1
-    # reopen_cap = .5
-    # forecast_change_prior_mean = 0
-    # forecast_change_prior_sd = -99920
-    # forecast_priors = dict(mu = forecast_change_prior_mean,
-    #                         sig = forecast_change_prior_sd)
-    # ignore_vent = True
-    # include_mobility = True
-    # location_string = "United States, Pennsylvania, Philadelphia County"
+    assert 2==5
+    n_chains = 3
+    n_iters = 100
+    penalty = .06
+    fit_penalty = False
+    sample_obs = False
+    as_of_days_ago = 0
+    census_ts = pd.read_csv(path.join(f"~/projects/chime_sims/data/", f"Downtown_ts.csv"), encoding = "latin")
+    # impute vent with the proportion of hosp.  this is a crude hack
+    census_ts.loc[census_ts.vent.isna(), "vent"] = census_ts.hosp.loc[
+        census_ts.vent.isna()
+    ] * np.mean(census_ts.vent / census_ts.hosp)
+    # import parameters
+    params = pd.read_csv(path.join(f"/Users/crandrew/projects/chime_sims/data/", f"Downtown_parameters.csv"), encoding = "latin")
+    flexible_beta = True
+    y_max = None
+    figdir = f"/Users/crandrew/projects/chime_sims/output/foo/"
+    outdir = f"/Users/crandrew/projects/chime_sims/output/"
+    burn_in = 10
+    prefix = ""
+    reopen_day = 100
+    reopen_speed = .1
+    reopen_cap = .5
+    forecast_change_prior_mean = 0
+    forecast_change_prior_sd = -99920
+    forecast_priors = dict(mu = forecast_change_prior_mean,
+                            sig = forecast_change_prior_sd)
+    ignore_vent = True
+    include_mobility = True
+    location_string = "United States, Pennsylvania, Philadelphia County"
 ############
     nobs = census_ts.shape[0] - as_of_days_ago
 
@@ -764,7 +772,8 @@ def main():
     df = pd.concat([df, dfi])
 
     if save_chains:
-        df.to_json(path.join(f"{outdir}", "chains.json.bz2"), orient="records", lines=True)
+        df.to_pickle(path.join(f"{outdir}", "chains.pkl"))
+
 
     # df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_28_10_42_48_PMC_PMC_mob/output/chains.json.bz2", lines = True)
 

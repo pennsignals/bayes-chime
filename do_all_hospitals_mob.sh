@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the arguments
-chains=8
+chains=16
 n_iters=30000
 burn_in=15000
 reopen_day=100
@@ -38,6 +38,6 @@ do
 	--override_beta_prior .001 \
 	--override_mobility_prior .1 \
 	--location_string "$locstring" \
-	--ignore_vent 2>> errors.out &
+	--ignore_vent 2>> errors.out 
 done
 

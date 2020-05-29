@@ -151,17 +151,22 @@ def power_spline(x, knots, n, xtrim):
     spl = spl/(xtrim**n)#scaling -- xtrim is the max number of days, so the highest value that the spline could have
     return spl**n
 
+
 def logistic(L, k, x0, x):
     exp_term = np.exp(-k * (x - x0))
-    # Catch overflow and return nan instead of 0.0
-    if isinstance(exp_term, (np.ndarray, pd.core.series.Series)):
-        exp_term[~np.isfinite(exp_term)] = np.nan
-        return L / (1 + exp_term)
-    else:
-        if not np.isfinite(exp_term):
-            return np.nan
-        else:
-            return L / (1 + exp_term)
+    return L / (1 + exp_term)
+
+# def logistic(L, k, x0, x):
+#     exp_term = np.exp(-k * (x - x0))
+#     # Catch overflow and return nan instead of 0.0
+#     if isinstance(exp_term, (np.ndarray, pd.core.series.Series)):
+#         exp_term[~np.isfinite(exp_term)] = np.nan
+#         return L / (1 + exp_term)
+#     else:
+#         if not np.isfinite(exp_term):
+#             return np.nan
+#         else:
+#             return L / (1 + exp_term)
 
 def qdraw(qvec, p_df):
     """
