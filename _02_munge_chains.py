@@ -433,11 +433,12 @@ def dRdmob(df, census_ts, term, outdir, figdir, prefix):
     # relative effect in logit space
     relef = np.quantile(np.stack(df[f"rel_effect_{term}"]), [.025, .25, .5, .75, .975], axis = 0)
     # retro
+    firsthosp = census_ts.loc[~census_ts.hosp.isna()].index.min()
     startpos_retr = census_ts.loc[~census_ts.hosp.isna()].index.min()
-    retr = rel_effect_wrapper(df, term, startpos_retr)
-    startpos_pros = census_ts.loc[~census_ts.hosp.isna()].index.max()
+    retr = rel_effect_wrapper(df, term, startpos_retr, startpos_retr) # the day of the first hospitalization is the first retrospective day
     #pros
-    pros = rel_effect_wrapper(df, term, startpos_pros)
+    startpos_pros = census_ts.loc[~census_ts.hosp.isna()].index.max()
+    pros = rel_effect_wrapper(df, term, startpos_pros, startpos_retr)
     savedict = dict(relef = relef,
                     startpos_retr = startpos_retr,
                     retr = retr,

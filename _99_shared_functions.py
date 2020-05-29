@@ -50,15 +50,15 @@ def reopen_wrapper(dfi, day, speed, cap):
     return SIR_ii['arr_stoch'][:,3]
 
 
-def rel_effect_wrapper(df, term, day):
+def rel_effect_wrapper(df, term, day, firsthosp):
     '''
     this function takes one row of a data frame of iterations and changes 
     the mob_effect by changing a series to a particular value after a specific 
     day
     '''
-    base = np.stack(df.arr)[:,:,3]
+    base = np.stack(df.arr)[:,:,3] # this is the array of hospital census, for each simulate
     pool = mp.Pool(mp.cpu_count())
-    scen = np.stack(pool.starmap(rel_effect_worker, [(df.iloc[i], term, day) for i in range(df.shape[0])]))
+    scen = np.stack(pool.starmap(rel_effect_worker, [(df.iloc[i], term, day, firsthosp) for i in range(df.shape[0])]))
     pool.close()
     diff = scen - base
     diffq = np.quantile(diff, [.025, .25, .5, .75, .975], axis = 0)
@@ -66,22 +66,22 @@ def rel_effect_wrapper(df, term, day):
 
 
 
-def rel_effect_worker(dfi, term, day):
+def rel_effect_worker(dfi, term, day, firsthosp):
     p_df = dfi.reset_index()   
     p_df.columns = ['param', 'val']
     termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
                               'parks', 'transit_stations', 'workplaces', \
                               'residential']
+        
     mob = np.stack([dfi[i] for i in termlist]).T     
+    mob = mob[firsthosp:,:]
     coefs = np.stack([dfi[f"mob_{term}"] for term in termlist])
     baseline = np.stack([mob[:,i] * coefs[i] for i in range(len(coefs))])    
     termpos = [ i for i, x in enumerate(termlist) if x == term ][0]
-    baseline[termpos,day:] = 0 # after the day that we're perturbing, the effect of one category of mobility goes to zero
+    baseline[termpos,day-firsthosp:] = 0 # after the day that we're perturbing, the effect of one category of mobility goes to zero
     scenario = np.sum(baseline, axis = 0)
     SIR_scen = SIR_from_params(p_df, scenario)['arr_stoch'][:,3]
     return SIR_scen
-
-
 
 def scale(arr, mu, sig):
     if len(arr.shape)==1:
