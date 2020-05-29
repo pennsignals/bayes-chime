@@ -246,7 +246,7 @@ def mobility_autoregression(p_df, Z, forecast_how_far):
         lagmat[i,:] = np.squeeze(np.flip(yhat[-2:,:], axis = 0).reshape(1,12, order = "F"))
         yh = np.concatenate([lagmat[i, :], dowmat[i,:]]) @ theta
         yhat = np.concatenate([yhat, yh.reshape(1,6)])
-        if i < (whereat + 10): # don't forecast mobility more than 10 days out
+        if i < (whereat + 7): # don't forecast mobility more than 10 days out
             levmat[i, :] = levmat[i-1,:] + yh
         else:
             levmat[i, :] = levmat[i-1,:]
