@@ -237,11 +237,14 @@ def mobility_autoregression(p_df, Z, forecast_how_far):
     lagmat = np.array(Zdf[lagcols])
     dowmat = np.array(Zdf[dowcols])
     levmat = np.array(Zdf.loc[:, "retail_and_recreation":"residential"])
-    for i in range(whereat,Zdf.shape[0]):#(whereat+forecast_how_far-1)): 
+    for i in range(whereat,Zdf.shape[0]): 
         lagmat[i,:] = np.squeeze(np.flip(yhat[-2:,:], axis = 0).reshape(1,12, order = "F"))
         yh = np.concatenate([lagmat[i, :], dowmat[i,:]]) @ theta
         yhat = np.concatenate([yhat, yh.reshape(1,6)])
-        levmat[i, :] = levmat[i-1,:] + yh
+        if i > (whereat + 10): # don't forecast mobility more than 10 days out
+            levmat[i, :] = levmat[i-1,:] + yh
+        else:
+            levmat[i, :] = levmat[i-1,:]
     # now put the np arrays back into the relevant part of the dataframe
     Zdf[lagcols] = lagmat
     Zdf.loc[:, "retail_and_recreation":"residential"] = levmat
