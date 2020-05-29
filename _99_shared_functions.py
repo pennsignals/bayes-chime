@@ -36,7 +36,9 @@ def reopenfn(day, reopen_day=60, reopen_speed=0.1, reopen_cap = .5):
         return 1.0
     else:
         val = (1 - reopen_speed) ** (day - reopen_day)
-        return val if val >= reopen_cap else reopen_cap
+        val = val if val > (1-reopen_cap) else (1-reopen_cap)
+        return val
+
 
 def reopen_wrapper(dfi, day, speed, cap):
     p_df = dfi.reset_index()   
@@ -89,10 +91,14 @@ def scale(arr, mu, sig):
     return arr
 
 
+<<<<<<< HEAD
 def write_pickle(file, path):
     with open(path, 'wb') as handle:
         pickle.dump(file, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+=======
+import matplotlib.pyplot as plt
+>>>>>>> testmerge
 # Run the SIR model forward in time
 def sim_sir(
     S,
@@ -119,6 +125,7 @@ def sim_sir(
 ):
     N = S + E + I + R
     s, e, i, r = [S], [E], [I], [R]
+    # reoplist, sdlist, betatlist = [],[] ,[]
     if len(beta_spline) > 0:
         knots = np.linspace(0, nobs-nobs/beta_k/2, beta_k)
     if mob_effect is None:
@@ -132,7 +139,8 @@ def sim_sir(
             sd = logistic(L = 1, k=1, x0 = 0, x= b0 + XB + mob_effect[day])
         else:
             sd = logistic(logistic_L, logistic_k, logistic_x0, x=day)
-        sd *= reopenfn(day, reopen_day, reopen_speed, reopen_cap)
+        reop = reopenfn(day, reopen_day, reopen_speed, reopen_cap)
+        sd *= reop
         beta_t = beta * (1 - sd)
         S, E, I, R = sir(y, alpha, beta_t, gamma, nu, N)
         s.append(S)
@@ -140,9 +148,26 @@ def sim_sir(
         i.append(I)
         r.append(R)
     s, e, i, r = np.array(s), np.array(e), np.array(i), np.array(r)
+    # plt.plot(sdlist)
+    # plt.plot(betatlist)
+    # plt.plot(reoplist)
     return s, e, i, r
 
+# beta = 3
+# sd = .9
+# reopen_speed = .05
+# day = 200
+# reopen_day = 100
+# reopen_cap = 0
+# val = (1 - reopen_speed) ** (day - reopen_day)
+# val = val if val > reopen_cap else reopen_cap
 
+<<<<<<< HEAD
+=======
+# beta* (1-sd*val)
+
+
+>>>>>>> testmerge
 def power_spline(x, knots, n, xtrim):
     if x > xtrim: #trim the ends of the spline to prevent nonsense extrapolation
         x = xtrim + 1

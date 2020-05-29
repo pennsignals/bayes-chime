@@ -24,11 +24,6 @@ from _02_munge_chains import SD_plot, mk_projection_tables, plt_predictive, \
 from utils import beta_from_q
 
 LET_NUMS = pd.Series(list(ascii_letters) + list(digits))
-# PARAMDIR = None
-# CENSUS_TS = None
-# PARAMS = None
-# NOBS = None
-# N_ITERS = None
 
 def get_dir_name(options):
     now = datetime.now()
@@ -780,7 +775,7 @@ def main():
     # make plots of chain traces
     posterior_trace_plot(df, burn_in, figdir, prefix if prefix is not None else "")
 
-    # process the output
+    # process the output    
     burn_in_df = df.loc[(df.iter <= burn_in)]
     df = df.loc[(df.iter > burn_in)]
 
@@ -793,8 +788,6 @@ def main():
               as_of_days_ago = as_of_days_ago,
               census_ts = census_ts)
 
-    
-    
     ## Rt plot
     Rt_plot(df=df, 
               first_day = census_ts[census_ts.columns[0]].values[0], 
@@ -847,7 +840,6 @@ def main():
         reop = np.stack(reop)
         reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
         qmats.append(reopq)
-
     dates = pd.date_range(f"{first_day}", periods=201, freq="d")
     fig = plt.figure()
     for i in range(len(reopen_days)):
@@ -864,7 +856,6 @@ def main():
     fig.autofmt_xdate()
     fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
 
-    #
     mk_projection_tables(df, first_day, outdir)
     # marginal posteriors
     toplot = df[
