@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Set the arguments
-chains=16
-n_iters=15000
-burn_in=10000
+chains=8
+n_iters=20000
+burn_in=15000
 reopen_day=100
 reopen_speed=.05
 reopen_cap=.5
@@ -33,9 +33,9 @@ do
 	--reopen_cap $reopen_cap \
 	--prefix $loc \
 	--save_chains \
-	-o "${loc}_mob${mob_prior}_beta${beta_prior}" \
+	-o "${loc}_mob_nobeta" \
 	--include_mobility \
-	--override_beta_prior 10 \
+	--override_beta_prior .001 \
 	--override_mobility_prior .1 \
 	--location_string "$locstring" \
 	--ignore_vent 2>> errors.out &
