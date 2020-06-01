@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the arguments
-chains=16
+chains=8
 n_iters=30000
 burn_in=15000
 reopen_day=100
@@ -9,7 +9,7 @@ reopen_speed=.05
 reopen_cap=.5
 
 
-for loc in 'PAH' 'Downtown' 'PMC' 'HUP' 'CCH' 'MCP' 'LGH'
+for loc in 'CCH' 'LGH' 'PAH' 'Downtown' 'HUP' 'PMC' 'MCP'
 do
 	if [ $loc = 'CCH' ]; then 
 		locstring="United States, Pennsylvania, Chester County"
@@ -33,11 +33,11 @@ do
 	--reopen_cap $reopen_cap \
 	--prefix $loc \
 	--save_chains \
-	-o "${loc}_mob_nobeta" \
+	-o "${loc}_mob_nobeta_newpriors" \
 	--include_mobility \
 	--override_beta_prior .001 \
-	--override_mobility_prior .1 \
+	--override_mobility_prior 10 \
 	--location_string "$locstring" \
-	--ignore_vent 2>> errors.out 
+	--ignore_vent 2>> errors.out &
 done
 

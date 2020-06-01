@@ -173,7 +173,7 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
         posterior += forecast_prior_contrib
     # priors on R at time t
     today_position = obs.loc[~obs.hosp.isna()].index.max()
-    r_prop = draw['r'][today_position]/float(p_df.loc[p_df.param == 'region_pop', 'val'])*float(p_df.loc[p_df.param == 'mkt_share', 'val'])
+    r_prop = draw['r'][today_position]/float(p_df.loc[p_df.param == 'region_pop', 'val'])
     r_probability_under_prior = sps.beta.pdf(r_prop, float(params.loc[params.param == 'r_at_t', 'p1']), float(params.loc[params.param == 'r_at_t', 'p2']))
     posterior += np.log(r_probability_under_prior)
     # form output
@@ -277,8 +277,6 @@ def chain(seed, params, obs, n_iters, shrinkage, holdout,
             me = np.array(current_pos['AR_design_matrix']['Zdf'][term]) * mob_coefs[i]
             out.update({f"rel_effect_{term}" :me})
             out.update({term :np.array(current_pos['AR_design_matrix']['Zdf'][term])})
-        out
-            
         if holdout > 0:
             out.update({"test_loss": current_pos["test_loss"]})
         outdicts.append(out)
@@ -333,7 +331,6 @@ def do_chains(n_iters,
                            forecast_priors, sample_obs, ignore_vent, \
                            startpos) \
                           for i in range(n_chains)]
-    # get the final answer based on the best penalty
     if parallel:
         pool = mp.Pool(mp.cpu_count())
         chains = pool.starmap(chain, tuples_for_starmap)
@@ -718,7 +715,6 @@ def main():
         # do the chains for a small number of iterations.  
         # make sure that they output their position
         # allow them to start from a pre-specified position
-    #start    
     df = do_chains(n_iters = 500,
                    params = params, 
                    obs = census_ts, 
@@ -731,6 +727,7 @@ def main():
                    ignore_vent = ignore_vent,
                    startpos = None)
     imax = 500
+        
     bestpos = df.pos.loc[df.posterior == np.max(df.posterior)].iloc[0]
     while imax < burn_in:
         increment = 500 if (imax + 500) < burn_in else (burn_in - imax )
@@ -750,7 +747,7 @@ def main():
         df = pd.concat([df, dfi])
         lastones = df.loc[df.iter == max(df.iter), ['pos', 'posterior']]
         bestpos = lastones.pos.loc[lastones.posterior == lastones.posterior.max()].iloc[0]
-    # after burn-in fit the for-real chains
+        # after burn-in fit the for-real chains
     dfi = do_chains(n_iters = n_iters - burn_in, 
            params = params, 
            obs = census_ts, 
@@ -769,8 +766,6 @@ def main():
     if save_chains:
         df.to_pickle(path.join(f"{outdir}", "chains.pkl"))
 
-
-    # df = pd.read_json("/Users/crandrew/projects/chime_sims/output/2020_05_28_10_42_48_PMC_PMC_mob/output/chains.json.bz2", lines = True)
 
     # make plots of chain traces
     posterior_trace_plot(df, burn_in, figdir, prefix if prefix is not None else "")
@@ -801,12 +796,6 @@ def main():
     mobilitity_forecast_plot(df, census_ts, howfar = 30, figdir = figdir, 
                              prefix = prefix if prefix is not None else "")
 
-    # relative effects plot
-    termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
-                                  'parks', 'transit_stations', 'workplaces', \
-                                  'residential']
-    for term in termlist:
-        dRdmob(df=df, census_ts = census_ts, term = term, outdir = outdir, prefix = prefix, figdir = figdir)
 
     # make predictive plot
     n_days = [30, 90, 180]
@@ -828,33 +817,6 @@ def main():
             vent_capacity=None,
         )
 
-    # reopening
-    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
-    reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
-    reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
-    qmats = []    
-    for day in reopen_days:
-        pool = mp.Pool(mp.cpu_count())
-        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
-        pool.close()
-        reop = np.stack(reop)
-        reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
-        qmats.append(reopq)
-    dates = pd.date_range(f"{first_day}", periods=201, freq="d")
-    fig = plt.figure()
-    for i in range(len(reopen_days)):
-        plt.plot_date(dates, qmats[i][2, :], "-", 
-                      label=f"re-open after {reopen_days[i]} days",
-                      color = colors[i])
-        plt.fill_between(x = dates,
-                         y1 = qmats[i][1,:], y2 = qmats[i][3,:], 
-                         alpha = .2, color = colors[i])
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
-    fig.autofmt_xdate()
-    fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
 
     mk_projection_tables(df, first_day, outdir)
     # marginal posteriors
@@ -921,6 +883,45 @@ def main():
     plt.tight_layout()
     fig.savefig(path.join(f"{figdir}", 
                           f"{prefix if prefix is not None else ''}marginal_posteriors_v2.pdf"))
+
+    # relative effects plot
+    termlist = ['retail_and_recreation', 'grocery_and_pharmacy', \
+                                  'parks', 'transit_stations', 'workplaces', \
+                                  'residential']
+    for term in termlist:
+        dRdmob(df=df, census_ts = census_ts, term = term, outdir = outdir, prefix = prefix, figdir = figdir)
+
+
+
+    # reopening
+    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
+    reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
+    reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
+    qmats = []    
+    for day in reopen_days:
+        pool = mp.Pool(mp.cpu_count())
+        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
+        pool.close()
+        reop = np.stack(reop)
+        reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
+        qmats.append(reopq)
+    dates = pd.date_range(f"{first_day}", periods=201, freq="d")
+    fig = plt.figure()
+    for i in range(len(reopen_days)):
+        plt.plot_date(dates, qmats[i][2, :], "-", 
+                      label=f"re-open after {reopen_days[i]} days",
+                      color = colors[i])
+        plt.fill_between(x = dates,
+                         y1 = qmats[i][1,:], y2 = qmats[i][3,:], 
+                         alpha = .2, color = colors[i])
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
+    fig.autofmt_xdate()
+    fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
+
+
     # pair plots
     if options.plot_pairs:
         #  Make a pair plot for diagnosing posterior dependence
@@ -935,3 +936,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
