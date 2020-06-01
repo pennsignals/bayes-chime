@@ -33,9 +33,9 @@ do
 	--reopen_cap $reopen_cap \
 	--prefix $loc \
 	--save_chains \
-	-o "${loc}_mob_jun1" \
+	-o "${loc}_mob_beta_together" \
 	--include_mobility \
-	--override_beta_prior .001 \
+	--override_beta_prior 2 \
 	--override_mobility_prior .2 \
 	--location_string "$locstring" \
 	--ignore_vent 2>> errors.out &

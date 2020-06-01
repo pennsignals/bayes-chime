@@ -398,7 +398,6 @@ def SIR_from_params(p_df, mob_effect):
     arrs = {}
     for sim_type in ["mean", "stochastic"]:
         if sim_type == "mean":
-
             ds = np.diff(i) + np.diff(r)  # new infections is delta i plus delta r
             ds = np.array([0] + list(ds))
             ds = ds[offset:]
