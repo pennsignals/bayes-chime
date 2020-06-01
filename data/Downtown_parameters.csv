@@ -21,7 +21,7 @@ beta_spline_dimension,10,constant,,,number of splines for beta
 beta_spline_power,1,constant,,,polynomial of the truncated power spline
 beta_spline_prior,0,norm,0,0.001,prior on spline terms. Variance of splines is the inverse of an L2 penalty.
 b0,4,norm,0,2.5,"This is the intercept on the mean of the logistic. It should be large and negative such that 1-logistic(b0+XB) is close to one when X is zero, because the (1-sd) is a coef on beta"
-autoregressive_mobility,0,norm,0,1,Prior on the coefficients for the vector autoregression of the various sorts of relative mobility from google
-dow_mobility,0,norm,0,1,Prior on the day of week dummies that augment the mobility VAR
+autoregressive_mobility,0,norm,0,0.01,Prior on the coefficients for the vector autoregression of the various sorts of relative mobility from google
+dow_mobility,0,norm,0,0.01,Prior on the day of week dummies that augment the mobility VAR
 mob_coefs,0,norm,0,0.1,Prior on the coefficients relating mobility to transmissivity
 r_at_t,0.1,beta,12.045,116.064,"The number of people in the recovered compartment, today"
