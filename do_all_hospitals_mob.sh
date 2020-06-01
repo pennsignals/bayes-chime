@@ -4,7 +4,7 @@
 chains=8
 n_iters=30000
 burn_in=15000
-reopen_day=100
+reopen_day=125
 reopen_speed=.05
 reopen_cap=.5
 
@@ -36,7 +36,7 @@ do
 	-o "${loc}_mob_nobeta_newpriors" \
 	--include_mobility \
 	--override_beta_prior .001 \
-	--override_mobility_prior 10 \
+	--override_mobility_prior .1 \
 	--location_string "$locstring" \
 	--ignore_vent 2>> errors.out &
 done
