@@ -35,8 +35,8 @@ do
 	--save_chains \
 	-o "${loc}_mob_beta_together" \
 	--include_mobility \
-	--override_beta_prior 2 \
-	--override_mobility_prior .2 \
+	--override_beta_prior .0001 \
+	--override_mobility_prior .5 \
 	--location_string "$locstring" \
 	--ignore_vent 2>> errors.out &
 done
