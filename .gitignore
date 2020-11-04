@@ -8,3 +8,7 @@ output/*
 drafts/
 *~
 out_misc/
+errors.out
+ACD_notes.txt
+data/old_misc/
+*~lock*

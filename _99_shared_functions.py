@@ -216,20 +216,23 @@ def SIR_from_params(p_df):
     nu = float(p_df.val.loc[p_df.param == "nu"])
     beta = float(
         p_df.val.loc[p_df.param == "beta"]
-    )  # get beta directly rather than via doubling time
+    )
+    nobs = int(p_df.val.loc[p_df.param == "nobs"])
+    n_days = int(p_df.val.loc[p_df.param == "howfar"])+nobs
+
     # assemble the coefficient vector for the splines
     beta_spline = np.array(p_df.val.loc[p_df.param.str.contains('beta_spline_coef')]) #this evaluates to an empty array if it's not in the params
     if len(beta_spline) > 0:
         b0 = float(p_df.val.loc[p_df.param == "b0"])
         beta_spline_power = np.array(p_df.val.loc[p_df.param == "beta_spline_power"])
-        nobs = float(p_df.val.loc[p_df.param == "nobs"])
+        # nobs = float(p_df.val.loc[p_df.param == "nobs"])
         beta_k = int(p_df.loc[p_df.param == "beta_spline_dimension", 'val'])
         Xmu = p_df.loc[p_df.param == "Xmu", 'val'].iloc[0]
         Xsig = p_df.loc[p_df.param == "Xsig", 'val'].iloc[0]
     else:
         beta_spline_power = None
         beta_k = None
-        nobs = None
+        # nobs = None
         b0 = None
         Xmu, Xsig = None, None
         
@@ -244,7 +247,6 @@ def SIR_from_params(p_df):
     gamma = 1 / recovery_days
     total_infections = n_hosp / mkt_share / hosp_prop
 
-    n_days = 200
 
     # Offset by the incubation period to start the sim
     # that many days before the first hospitalization
