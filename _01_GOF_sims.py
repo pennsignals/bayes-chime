@@ -93,13 +93,13 @@ def eval_pos(pos, params, obs, shrinkage, shrink_mask, holdout,
     n_obs = obs.shape[0]
     nobs = n_obs-holdout
     draw = SIR_from_params(qdraw(pos, params))
-    if sample_obs:
-        ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
-        ynoise_h[0] = 0
-        obs.hosp += ynoise_h
-        ynoise_v = np.random.normal(scale=obs.vent_rwstd)
-        ynoise_v[0] = 0
-        obs.vent += ynoise_v
+    # if sample_obs:
+    #     ynoise_h = np.random.normal(scale=obs.hosp_rwstd)
+    #     ynoise_h[0] = 0
+    #     obs.hosp += ynoise_h
+    #     ynoise_v = np.random.normal(scale=obs.vent_rwstd)
+    #     ynoise_v[0] = 0
+    #     obs.vent += ynoise_v
     if holdout > 0:
         train = obs[:-holdout]
         test = obs[-holdout:]
@@ -280,7 +280,7 @@ def main():
     # if __name__ == "__main__":
         # n_chains = 8
         # n_iters = 300
-        # penalty = .25
+        # penalty = .05
         # fit_penalty = False
         # sample_obs = False
         # as_of_days_ago = 0
@@ -297,8 +297,8 @@ def main():
         # outdir = f"/Users/crandrew/projects/chime_sims/output/"
         # burn_in = 200
         # prefix = ""
-        # reopen_day = 100
-        # reopen_speed = .1
+        # reopen_day = 8675309
+        # reopen_speed = 0
         # reopen_cap = 0.0
         
         # forecast_change_prior_mean = 0
@@ -306,6 +306,7 @@ def main():
         # forecast_priors = dict(mu = forecast_change_prior_mean,
         #                         sig = forecast_change_prior_sd)
         # ignore_vent = True
+        # howfar = 30
     # else:
     p = ArgParser()
     p.add("-c", "--my-config", is_config_file=True, help="config file path")
@@ -414,6 +415,12 @@ def main():
         action="store_true",
         help="don't fit to vent, multiply the likelihood by zero",
     )
+    p.add(
+        "--howfar",
+        type=int,
+        help="how far to project",
+        default = 30
+    )
 
     options = p.parse_args()
         
@@ -434,6 +441,7 @@ def main():
                            sig = options.forecast_change_prior_sd)
     save_chains = options.save_chains
     ignore_vent = options.ignore_vent
+    howfar = options.howfar
 
     if flexible_beta:
         print("doing flexible beta")
@@ -463,7 +471,6 @@ def main():
     write_inputs(options, paramdir, census_ts, params)
 ## start here when debug
     nobs = census_ts.shape[0] - as_of_days_ago
-
     # expand out the spline terms and append them to params
     # also add the number of observations, as i'll need this for evaluating the knots
     # finally, estimate the scaling factors for the design matrix
@@ -475,12 +482,17 @@ def main():
             "distribution":"norm",
             "p1":0,
             "p2":float(params.p2.loc[params.param == 'beta_spline_prior']**beta_spline_power),
-            'description':'spile term for beta'
+            'description':'spline term for beta'
             } for i in range(int(params.base.loc[params.param == "beta_spline_dimension"]))])
         nobsd = pd.DataFrame(dict(param = 'nobs', base = nobs, 
                                   distribution = "constant", p1 = np.nan, 
                                   p2 = np.nan, 
                                   description = 'number of observations(days)'), 
+                             index = [0])
+        howfard = pd.DataFrame(dict(param = 'howfar', base = howfar, 
+                                    distribution = "constant", p1 = np.nan, 
+                                    p2 = np.nan, 
+                                    description = 'how far to forecast(days)'), 
                              index = [0])
         # create the design matrix in order to compute the scaling factors
         # this is critical to make the prior on design matrix flexibility invariant to the scaling of the features
@@ -495,7 +507,7 @@ def main():
                                    p1 = [np.nan, np.nan], 
                                    p2 = [np.nan, np.nan], 
                                    description = ['','']))
-        params = pd.concat([params, beta_splines, nobsd, Xscale])
+        params = pd.concat([params, beta_splines, nobsd, howfard, Xscale])
         # set the ununsed ones to constant
         params.loc[params.param.isin(['logistic_k', 
                                       'logistic_L', 
@@ -506,33 +518,33 @@ def main():
     
 
     # rolling window variance
-    rwstd = []
-    for i in range(nobs):
-        y = census_ts.hosp[:i][-7:]
-        rwstd.append(np.std(y))
-    census_ts["hosp_rwstd"] = np.nan
-    census_ts.loc[range(nobs), "hosp_rwstd"] = rwstd
+    # rwstd = []
+    # for i in range(nobs):
+    #     y = census_ts.hosp[:i][-7:]
+    #     rwstd.append(np.std(y))
+    # census_ts["hosp_rwstd"] = np.nan
+    # census_ts.loc[range(nobs), "hosp_rwstd"] = rwstd
 
-    rwstd = []
-    for i in range(nobs):
-        y = census_ts.vent[:i][-7:]
-        rwstd.append(np.std(y))
-    census_ts["vent_rwstd"] = np.nan
-    census_ts.loc[range(nobs), "vent_rwstd"] = rwstd
+    # rwstd = []
+    # for i in range(nobs):
+    #     y = census_ts.vent[:i][-7:]
+    #     rwstd.append(np.std(y))
+    # census_ts["vent_rwstd"] = np.nan
+    # census_ts.loc[range(nobs), "vent_rwstd"] = rwstd
 
-    if sample_obs:
-        fig = plt.figure()
-        plt.plot(census_ts.vent, color="red")
-        plt.fill_between(
-            x=list(range(nobs)),
-            y1=census_ts.vent + 2 * census_ts.vent_rwstd,
-            y2=census_ts.vent - 2 * census_ts.vent_rwstd,
-            alpha=0.3,
-            lw=2,
-            edgecolor="k",
-        )
-        plt.title("week-long rolling variance")
-        fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
+    # if sample_obs:
+    #     fig = plt.figure()
+    #     plt.plot(census_ts.vent, color="red")
+    #     plt.fill_between(
+    #         x=list(range(nobs)),
+    #         y1=census_ts.vent + 2 * census_ts.vent_rwstd,
+    #         y2=census_ts.vent - 2 * census_ts.vent_rwstd,
+    #         alpha=0.3,
+    #         lw=2,
+    #         edgecolor="k",
+    #     )
+    #     plt.title("week-long rolling variance")
+    #     fig.savefig(path.join(f"{figdir}", f"observation_variance.pdf"))
 
     if fit_penalty:
         pen_vec = np.linspace(0.05, 0.5, 10)
@@ -591,7 +603,7 @@ def main():
     ## SEIR plot
     SEIR_plot(df=df, 
               first_day = census_ts[census_ts.columns[0]].values[0], 
-              howfar = 200, 
+              howfar = nobs+howfar, 
               figdir = figdir, 
               prefix = prefix if prefix is not None else "",
               as_of_days_ago = as_of_days_ago,
@@ -607,52 +619,52 @@ def main():
               census_ts = census_ts)
 
     # make predictive plot
-    n_days = [30, 90, 180]
+    n_days = [i for i in [30, 90, 180] if i> howfar]
     if options.n_days:
         n_days = options.n_days
 
     first_day = census_ts[census_ts.columns[0]].values[0]
-    for howfar in n_days:
+    for howfar_plot in n_days:
         plt_predictive(
             df,
             first_day,
             census_ts,
             figdir,
             as_of_days_ago,
-            howfar=howfar,
+            howfar=howfar_plot,
             prefix=prefix if prefix is not None else "",
             y_max=y_max,
             hosp_capacity=None,
             vent_capacity=None,
         )
 
-    # reopening
-    colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
-    reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
-    reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
-    qmats = []    
-    for day in reopen_days:
-        pool = mp.Pool(mp.cpu_count())
-        reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
-        pool.close()
-        reop = np.stack(reop)
-        reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
-        qmats.append(reopq)
-    dates = pd.date_range(f"{first_day}", periods=201, freq="d")
-    fig = plt.figure()
-    for i in range(len(reopen_days)):
-        plt.plot_date(dates, qmats[i][2, :], "-", 
-                      label=f"re-open after {reopen_days[i]} days",
-                      color = colors[i])
-        plt.fill_between(x = dates,
-                         y1 = qmats[i][1,:], y2 = qmats[i][3,:], 
-                         alpha = .2, color = colors[i])
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
-    fig.autofmt_xdate()
-    fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
+    # # reopening
+    # colors = ['blue', 'green', 'orange', 'red', 'yellow', 'cyan']
+    # reopen_day_gap = math.ceil((200-reopen_day)/len(colors))
+    # reopen_days = np.arange(reopen_day, 199, reopen_day_gap)
+    # qmats = []    
+    # for day in reopen_days:
+    #     pool = mp.Pool(mp.cpu_count())
+    #     reop = pool.starmap(reopen_wrapper, [(df.iloc[i], day, reopen_speed, reopen_cap) for i in range(df.shape[0])])
+    #     pool.close()
+    #     reop = np.stack(reop)
+    #     reopq = np.quantile(reop, [.05, .25, .5, .75, .95], axis = 0)
+    #     qmats.append(reopq)
+    # dates = pd.date_range(f"{first_day}", periods=201, freq="d")
+    # fig = plt.figure()
+    # for i in range(len(reopen_days)):
+    #     plt.plot_date(dates, qmats[i][2, :], "-", 
+    #                   label=f"re-open after {reopen_days[i]} days",
+    #                   color = colors[i])
+    #     plt.fill_between(x = dates,
+    #                       y1 = qmats[i][1,:], y2 = qmats[i][3,:], 
+    #                       alpha = .2, color = colors[i])
+    # plt.legend()
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.title(f"Reopening scenario, {int(reopen_speed*100)}% per day up to {int(reopen_cap*100)}% social distancing")
+    # fig.autofmt_xdate()
+    # fig.savefig(path.join(f"{figdir}", f"{prefix}reopening_scenarios.pdf"))
      
     mk_projection_tables(df, first_day, outdir)
 
@@ -711,9 +723,9 @@ def main():
     fig.savefig(path.join(f"{figdir}", 
                           f"{prefix if prefix is not None else ''}marginal_posteriors_v2.pdf"))
 
-    if options.plot_pairs:
-        #  Make a pair plot for diagnosing posterior dependence
-        plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
+    # if options.plot_pairs:
+    #     #  Make a pair plot for diagnosing posterior dependence
+    #     plt_pairplot_posteriors(toplot, figdir, prefix=prefix)
 
 
 
